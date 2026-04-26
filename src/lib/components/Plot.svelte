@@ -1,4 +1,5 @@
 <script lang="ts">
+	import * as d3 from 'd3';
 	import type { AudioFile } from '$lib/state/files.svelte';
 	import type { FileResult } from '$lib/state/results.svelte';
 
@@ -11,61 +12,216 @@
 
 	let { audioFile, result, selectedBand, loudnessType }: Props = $props();
 
-	function lastValue(pairs: [number, number][]): number | null {
-		return pairs.length > 0 ? pairs[pairs.length - 1][1] : null;
+	let container: HTMLDivElement;
+
+	const MARGIN = { top: 8, right: 16, bottom: 24, left: 48 };
+	const HEIGHT = 180;
+
+	const bandResult = $derived(result.bands.find((b) => b.label === selectedBand));
+	const loudnessData = $derived(bandResult?.[loudnessType] ?? []);
+
+	type HoverInfo = {
+		time: number;
+		momentary: number | null;
+		shortTerm: number | null;
+		peak: number | null;
+	};
+
+	let hoverInfo = $state<HoverInfo | null>(null);
+
+	function nearestValue(data: [number, number][], timeMs: number): number | null {
+		if (!data.length) return null;
+		let best = data[0];
+		for (const d of data) {
+			if (Math.abs(d[0] - timeMs) < Math.abs(best[0] - timeMs)) best = d;
+		}
+		return best[1];
 	}
 
-	function minValue(pairs: [number, number][]): number | null {
-		if (pairs.length === 0) return null;
-		return Math.min(...pairs.map(([, v]) => v));
+	function formatTime(s: number): string {
+		const m = Math.floor(s / 60);
+		const sec = Math.floor(s % 60);
+		return `${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
 	}
 
-	function maxValue(pairs: [number, number][]): number | null {
-		if (pairs.length === 0) return null;
-		return Math.max(...pairs.map(([, v]) => v));
+	function lufsColor(lufs: number): string {
+		const stops: [number, string][] = [
+			[-35, '#3b82f6'],
+			[-30, '#3b82f6'],
+			[-25, '#22c55e'],
+			[-20, '#eab308'],
+			[-15, '#ef4444'],
+		];
+		const clamped = Math.max(stops[0][0], Math.min(stops[stops.length - 1][0], lufs));
+		for (let i = 0; i < stops.length - 1; i++) {
+			const [d0, c0] = stops[i];
+			const [d1, c1] = stops[i + 1];
+			if (clamped <= d1) {
+				return d3.interpolateRgb(c0, c1)((clamped - d0) / (d1 - d0));
+			}
+		}
+		return stops[stops.length - 1][1];
 	}
 
-	function fmt(v: number | null, decimals = 1): string {
-		return v !== null ? v.toFixed(decimals) : '—';
+	function waveformEnvelope(buffer: AudioBuffer, width: number): { min: number; max: number }[] {
+		const data = buffer.getChannelData(0);
+		const spp = Math.max(1, Math.floor(data.length / width));
+		return Array.from({ length: width }, (_, i) => {
+			let min = 0,
+				max = 0;
+			for (let j = i * spp, end = Math.min(j + spp, data.length); j < end; j++) {
+				if (data[j] < min) min = data[j];
+				if (data[j] > max) max = data[j];
+			}
+			return { min, max };
+		});
 	}
 
-	function fmtDuration(seconds: number): string {
-		const m = Math.floor(seconds / 60);
-		const s = Math.floor(seconds % 60);
-		return `${m}:${String(s).padStart(2, '0')}`;
-	}
+	$effect(() => {
+		if (!container || !audioFile.buffer) return;
+
+		const width = container.clientWidth;
+		const innerW = width - MARGIN.left - MARGIN.right;
+		const innerH = HEIGHT - MARGIN.top - MARGIN.bottom;
+
+		const lufsData = loudnessData;
+		const br = bandResult;
+
+		d3.select(container).selectAll('svg').remove();
+
+		const svg = d3
+			.select(container)
+			.append('svg')
+			.attr('width', width)
+			.attr('height', HEIGHT)
+			.style('display', 'block');
+
+		const g = svg.append('g').attr('transform', `translate(${MARGIN.left},${MARGIN.top})`);
+
+		const xScale = d3.scaleLinear().domain([0, audioFile.duration]).range([0, innerW]);
+		const yWave = d3.scaleLinear().domain([-1, 1]).range([innerH, 0]);
+		const yLufs = d3.scaleLinear().domain([-45, -5]).range([innerH, 0]);
+
+		g.append('g')
+			.attr('transform', `translate(0,${innerH})`)
+			.call(d3.axisBottom(xScale).tickFormat((d) => formatTime(+d)).ticks(8))
+			.call((ax) => ax.select('.domain').attr('stroke', '#3a3a3a'))
+			.call((ax) => ax.selectAll('.tick line').attr('stroke', '#3a3a3a'))
+			.call((ax) =>
+				ax
+					.selectAll('.tick text')
+					.attr('fill', '#6a6a6a')
+					.style('font-family', 'monospace')
+					.style('font-size', '10px')
+			);
+
+		g.append('g')
+			.call(
+				d3
+					.axisLeft(yLufs)
+					.tickValues([-40, -35, -30, -25, -20, -15, -10])
+					.tickFormat((d) => `${d}`)
+			)
+			.call((ax) => ax.select('.domain').attr('stroke', '#3a3a3a'))
+			.call((ax) => ax.selectAll('.tick line').attr('stroke', '#3a3a3a'))
+			.call((ax) =>
+				ax
+					.selectAll('.tick text')
+					.attr('fill', '#6a6a6a')
+					.style('font-family', 'monospace')
+					.style('font-size', '10px')
+			);
+
+		// Waveform
+		const envelope = waveformEnvelope(audioFile.buffer!, innerW);
+		const areaGen = d3
+			.area<{ min: number; max: number }>()
+			.x((_, i) => i)
+			.y0((d) => yWave(d.min))
+			.y1((d) => yWave(d.max));
+
+		g.append('path').datum(envelope).attr('d', areaGen).attr('fill', '#2a2a2a');
+
+		// Loudness colored segments
+		if (lufsData.length > 1) {
+			type Segment = { x1: number; y1: number; x2: number; y2: number; color: string };
+			const segments: Segment[] = lufsData.slice(0, -1).map((d, i) => {
+				const next = lufsData[i + 1];
+				return {
+					x1: xScale(d[0] / 1000),
+					y1: yLufs(d[1]),
+					x2: xScale(next[0] / 1000),
+					y2: yLufs(next[1]),
+					color: lufsColor((d[1] + next[1]) / 2),
+				};
+			});
+
+			g.append('g')
+				.selectAll<SVGLineElement, Segment>('line')
+				.data(segments)
+				.join('line')
+				.attr('x1', (d) => d.x1)
+				.attr('y1', (d) => d.y1)
+				.attr('x2', (d) => d.x2)
+				.attr('y2', (d) => d.y2)
+				.attr('stroke', (d) => d.color)
+				.attr('stroke-width', 2);
+		}
+
+		// Hover line
+		const hoverLine = g
+			.append('line')
+			.attr('y1', 0)
+			.attr('y2', innerH)
+			.attr('stroke', '#ffffff22')
+			.attr('stroke-width', 1)
+			.attr('display', 'none');
+
+		// Mouse overlay
+		g.append('rect')
+			.attr('width', innerW)
+			.attr('height', innerH)
+			.attr('fill', 'transparent')
+			.style('cursor', 'crosshair')
+			.on('mousemove', (event) => {
+				const [mx] = d3.pointer(event);
+				const t = xScale.invert(mx);
+				const timeMs = t * 1000;
+				hoverLine.attr('x1', mx).attr('x2', mx).attr('display', null);
+				hoverInfo = {
+					time: t,
+					momentary: nearestValue(br?.momentary ?? [], timeMs),
+					shortTerm: nearestValue(br?.shortTerm ?? [], timeMs),
+					peak: nearestValue(br?.peak ?? [], timeMs),
+				};
+			})
+			.on('mouseleave', () => {
+				hoverLine.attr('display', 'none');
+				hoverInfo = null;
+			});
+	});
 </script>
 
-<div class="border-b border-[#3a3a3a] px-3 py-3">
-	<!-- File header -->
-	<div class="flex items-baseline gap-3 mb-3">
+<div class="border-b border-[#3a3a3a]">
+	<div class="flex items-baseline gap-3 px-3 py-2 border-b border-[#2a2a2a]">
 		<span class="text-[#c8a84b] text-xs uppercase tracking-widest font-bold">
 			{audioFile.artist ? `${audioFile.artist} — ` : ''}{audioFile.name}
 		</span>
-		<span class="text-[#3a3a3a] text-xs">{fmtDuration(audioFile.duration)}</span>
+		<span class="text-[#3a3a3a] text-xs">{formatTime(audioFile.duration)}</span>
 	</div>
 
-	<!-- LUFS table -->
-	<table class="w-full text-xs border-collapse">
-		<thead>
-			<tr class="text-[#6a6a6a] uppercase tracking-widest">
-				<th class="text-left py-1 pr-4 font-normal border-b border-[#3a3a3a]">Band</th>
-				<th class="text-right py-1 px-4 font-normal border-b border-[#3a3a3a]">Max LUFS</th>
-				<th class="text-right py-1 px-4 font-normal border-b border-[#3a3a3a]">Min LUFS</th>
-				<th class="text-right py-1 pl-4 font-normal border-b border-[#3a3a3a]">Peak dBFS</th>
-			</tr>
-		</thead>
-		<tbody>
-			{#each result.bands as band (band.label)}
-				{@const series = loudnessType === 'momentary' ? band.momentary : band.shortTerm}
-				{@const isSelected = band.label === selectedBand}
-				<tr class={isSelected ? 'text-[#d4d0c8]' : 'text-[#4a4a4a]'}>
-					<td class="py-1 pr-4">{band.label}</td>
-					<td class="text-right py-1 px-4 tabular-nums">{fmt(maxValue(series))}</td>
-					<td class="text-right py-1 px-4 tabular-nums">{fmt(minValue(series))}</td>
-					<td class="text-right py-1 pl-4 tabular-nums">{fmt(maxValue(band.peak))}</td>
-				</tr>
-			{/each}
-		</tbody>
-	</table>
+	<div bind:this={container} class="w-full bg-[#0f0f0f]"></div>
+
+	{#if hoverInfo}
+		<div class="flex gap-6 px-3 py-1 border-t border-[#2a2a2a] text-[10px] font-mono text-[#888]">
+			<span>TIME {formatTime(hoverInfo.time)}</span>
+			<span>PEAK {hoverInfo.peak?.toFixed(1) ?? '—'} dBFS</span>
+			<span>MOMENTARY {hoverInfo.momentary?.toFixed(1) ?? '—'} LUFS</span>
+			<span>SHORT-TERM {hoverInfo.shortTerm?.toFixed(1) ?? '—'} LUFS</span>
+		</div>
+	{:else}
+		<div class="px-3 py-1 border-t border-[#2a2a2a] text-[10px] font-mono text-[#3a3a3a]">
+			HOVER TO INSPECT
+		</div>
+	{/if}
 </div>
