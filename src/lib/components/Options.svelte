@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { options, addFrequency, removeFrequency, resetOptions } from '$lib/state/options.svelte';
 	import { files } from '$lib/state/files.svelte';
+	import { analyzeFiles } from '$lib/audio/analysis';
+	import { setResults, clearResults } from '$lib/state/results.svelte';
 
 	let newFreq = $state('');
 	let inputError = $state('');
@@ -46,6 +48,21 @@
 	function onKeydown(e: KeyboardEvent) {
 		if (e.key === 'Enter') handleAdd();
 		else inputError = '';
+	}
+
+	async function handleAnalyze() {
+		options.isAnalyzing = true;
+		options.progress = 0;
+		clearResults();
+		try {
+			const data = await analyzeFiles(files.list, options.frequencies, (p) => {
+				options.progress = p;
+			});
+			setResults(data);
+		} finally {
+			options.isAnalyzing = false;
+			options.progress = 0;
+		}
 	}
 </script>
 
@@ -129,6 +146,7 @@
 			{/if}
 			<button
 				disabled={options.isAnalyzing || !!disabledReason}
+				onclick={handleAnalyze}
 				class="flex-1 py-2 text-xs uppercase tracking-widest bg-[#c8a84b] text-[#0e0e0e] font-bold hover:bg-[#d4b85a] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
 			>
 				{options.isAnalyzing ? 'ANALYZING…' : 'ANALYZE'}

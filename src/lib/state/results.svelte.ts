@@ -16,5 +16,10 @@ export type FileResult = {
 
 export const results = $state<{ data: FileResult[] }>({ data: [] });
 
-// TODO: setResults(data: FileResult[])
-// TODO: clearResults()
+export function setResults(data: FileResult[]): void {
+	results.data = data;
+}
+
+export function clearResults(): void {
+	results.data = [];
+}
