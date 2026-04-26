@@ -6,6 +6,7 @@
 
 	let newFreq = $state('');
 	let inputError = $state('');
+	let abortController: AbortController | null = null;
 
 	const disabledReason = $derived(
 		files.list.length === 0
@@ -51,18 +52,26 @@
 	}
 
 	async function handleAnalyze() {
+		abortController = new AbortController();
 		options.isAnalyzing = true;
 		options.progress = 0;
 		clearResults();
 		try {
 			const data = await analyzeFiles(files.list, options.frequencies, (p) => {
 				options.progress = p;
-			});
+			}, abortController.signal);
 			setResults(data);
+		} catch (e) {
+			if (!(e instanceof Error && e.name === 'AbortError')) throw e;
 		} finally {
 			options.isAnalyzing = false;
 			options.progress = 0;
+			abortController = null;
 		}
+	}
+
+	function handleCancel() {
+		abortController?.abort();
 	}
 </script>
 
@@ -152,11 +161,20 @@
 				{options.isAnalyzing ? 'ANALYZING…' : 'ANALYZE'}
 			</button>
 		</div>
-		<button
-			onclick={resetOptions}
-			class="px-4 py-2 text-xs uppercase tracking-widest border-l border-[#3a3a3a] text-[#6a6a6a] hover:text-[#d4d0c8]"
-		>
-			RESET
-		</button>
+		{#if options.isAnalyzing}
+			<button
+				onclick={handleCancel}
+				class="px-4 py-2 text-xs uppercase tracking-widest border-l border-[#3a3a3a] text-[#c84b4b] hover:text-[#d47070] cursor-pointer"
+			>
+				CANCEL
+			</button>
+		{:else}
+			<button
+				onclick={resetOptions}
+				class="px-4 py-2 text-xs uppercase tracking-widest border-l border-[#3a3a3a] text-[#6a6a6a] hover:text-[#d4d0c8]"
+			>
+				RESET
+			</button>
+		{/if}
 	</div>
 </section>

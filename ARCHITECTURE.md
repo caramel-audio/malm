@@ -53,8 +53,8 @@ For now, nothing is persisted, the page fully resets on refresh. In the future, 
 - Svelte $state runes as stores
 - Web Audio API for audio processing
 - Tailwind CSS for styling
-- D3.js for plotting the graphs
-- WaveSurfer.js for audio playback and visualization
+- D3.js for plotting graphs (waveform peaks + color-gradient loudness curves)
+- Web Audio API for playback (`AudioContext` + `AudioBufferSourceNode`)
 - @domchristie/needles for loudness measurement
 
 # Styling

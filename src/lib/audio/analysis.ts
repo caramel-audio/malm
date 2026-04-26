@@ -11,6 +11,7 @@ export async function analyzeFiles(
 	files: AudioFile[],
 	frequencies: number[],
 	onProgress: (progress: number) => void,
+	signal?: AbortSignal,
 ): Promise<FileResult[]> {
 	const bands = buildBands(frequencies);
 	const total = files.length * bands.length;
@@ -20,18 +21,20 @@ export async function analyzeFiles(
 
 	for (const file of files) {
 		if (!file.buffer) continue;
-		const bandResults: BandResult[] = [];
+		signal?.throwIfAborted();
 
-		for (const band of bands) {
-			const filtered = await renderBand(file.buffer, band);
+		const bandResults = await Promise.all(bands.map(async (band) => {
+			signal?.throwIfAborted();
+			const filtered = await renderBand(file.buffer!, band);
 			file.bandBuffers[band.label] = filtered;
 			const measurement = await measureLoudness(filtered);
-			bandResults.push({ label: band.label, ...measurement });
 			done++;
 			onProgress(done / total);
-		}
+			return { label: band.label, ...measurement } satisfies BandResult;
+		}));
 
 		fileResults.push({ fileId: file.id, bands: bandResults });
+		await new Promise((r) => setTimeout(r, 0));
 	}
 
 	return fileResults;

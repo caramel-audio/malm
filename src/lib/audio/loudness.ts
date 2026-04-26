@@ -1,9 +1,8 @@
 // EBU R128 loudness measurement
-// K-weighting applied via OfflineAudioContext IIR filters; windows computed manually
+// K-weighting applied via OfflineAudioContext IIR filters; LUFS via sliding window (O(N))
 
 import type { BandResult } from '$lib/state/results.svelte';
 
-// EBU R128 K-weighting filter coefficients (from ITU-R BS.1770)
 function preFilterCoefficients(fs: number) {
 	const db = 3.999843853973347;
 	const f0 = 1681.974450955533;
@@ -44,56 +43,31 @@ async function applyKWeighting(buffer: AudioBuffer): Promise<AudioBuffer> {
 	return ctx.startRendering();
 }
 
-// Channel gains per EBU R128 (L, R, C, Ls, Rs); beyond 5ch treated as 1.0
+// Channel gains per EBU R128 (L, R, C, Ls, Rs)
 const CHANNEL_GAINS = [1, 1, 1, 1.41, 1.41];
-
-function computeLUFS(weighted: AudioBuffer, startSample: number, blockSamples: number): number {
-	let sum = 0;
-	for (let ch = 0; ch < weighted.numberOfChannels; ch++) {
-		const data = weighted.getChannelData(ch);
-		const gain = CHANNEL_GAINS[ch] ?? 1;
-		let ms = 0;
-		const end = Math.min(startSample + blockSamples, data.length);
-		for (let i = startSample; i < end; i++) ms += data[i] * data[i];
-		sum += gain * (ms / blockSamples);
-	}
-	return -0.691 + 10 * Math.log10(Math.max(sum, 1e-10));
-}
-
-function computePeakDbfs(buffer: AudioBuffer, startSample: number, windowSamples: number): number {
-	let peak = 0;
-	for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
-		const data = buffer.getChannelData(ch);
-		const end = Math.min(startSample + windowSamples, data.length);
-		for (let i = startSample; i < end; i++) {
-			const abs = Math.abs(data[i]);
-			if (abs > peak) peak = abs;
-		}
-	}
-	return 20 * Math.log10(Math.max(peak, 1e-10));
-}
 
 export async function measureLoudness(buffer: AudioBuffer): Promise<Omit<BandResult, 'label'>> {
 	const sr = buffer.sampleRate;
 	const stepSamples = Math.round(0.1 * sr);
-	const momentarySamples = Math.round(0.4 * sr);
-	const shortTermSamples = Math.round(3.0 * sr);
 	const totalSteps = Math.floor(buffer.length / stepSamples);
+	const momentaryChunks = 4;   // 400ms / 100ms
+	const shortTermChunks = 30;  // 3000ms / 100ms
+	const nCh = buffer.numberOfChannels;
 
-	// Copy channel data into plain arrays BEFORE any OfflineAudioContext rendering,
-	// which may detach the buffer's backing ArrayBuffers in some browsers.
-	const channelData: Float32Array[] = [];
-	for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
-		channelData.push(new Float32Array(buffer.getChannelData(ch)));
+	// Copy channel data BEFORE any OfflineAudioContext rendering, which may
+	// detach the buffer's backing ArrayBuffers in some browsers.
+	const rawChannels: Float32Array[] = [];
+	for (let ch = 0; ch < nCh; ch++) {
+		rawChannels.push(new Float32Array(buffer.getChannelData(ch)));
 	}
 
-	// Compute peak from copied raw data
+	// Compute peak per 100ms step from raw data
 	const peak: [number, number][] = [];
 	for (let step = 0; step < totalSteps; step++) {
 		const start = step * stepSamples;
 		const end = Math.min(start + stepSamples, buffer.length);
 		let p = 0;
-		for (const data of channelData) {
+		for (const data of rawChannels) {
 			for (let i = start; i < end; i++) {
 				const abs = Math.abs(data[i]);
 				if (abs > p) p = abs;
@@ -102,16 +76,49 @@ export async function measureLoudness(buffer: AudioBuffer): Promise<Omit<BandRes
 		peak.push([step * 100, 20 * Math.log10(Math.max(p, 1e-10))]);
 	}
 
-	// Apply K-weighting and compute LUFS
+	// Apply K-weighting
 	const weighted = await applyKWeighting(buffer);
+
+	// Precompute sum-of-squares per 100ms chunk per channel — O(N) pass
+	const chunkSS: Float64Array[] = [];
+	for (let ch = 0; ch < nCh; ch++) {
+		const data = weighted.getChannelData(ch);
+		const chunks = new Float64Array(totalSteps);
+		for (let step = 0; step < totalSteps; step++) {
+			const start = step * stepSamples;
+			const end = Math.min(start + stepSamples, data.length);
+			let ss = 0;
+			for (let i = start; i < end; i++) ss += data[i] * data[i];
+			chunks[step] = ss;
+		}
+		chunkSS.push(chunks);
+	}
+
+	// Sliding window LUFS — O(totalSteps × nCh), no inner sample loop
+	const mRunning = new Float64Array(nCh);
+	const stRunning = new Float64Array(nCh);
 	const momentary: [number, number][] = [];
 	const shortTerm: [number, number][] = [];
 
 	for (let step = 0; step < totalSteps; step++) {
-		const startSample = step * stepSamples;
-		const timeMs = step * 100;
-		momentary.push([timeMs, computeLUFS(weighted, startSample, momentarySamples)]);
-		shortTerm.push([timeMs, computeLUFS(weighted, startSample, shortTermSamples)]);
+		for (let ch = 0; ch < nCh; ch++) {
+			mRunning[ch] += chunkSS[ch][step];
+			if (step >= momentaryChunks) mRunning[ch] -= chunkSS[ch][step - momentaryChunks];
+			stRunning[ch] += chunkSS[ch][step];
+			if (step >= shortTermChunks) stRunning[ch] -= chunkSS[ch][step - shortTermChunks];
+		}
+
+		const mChunks = Math.min(step + 1, momentaryChunks);
+		const stChunks = Math.min(step + 1, shortTermChunks);
+		let mSum = 0, stSum = 0;
+		for (let ch = 0; ch < nCh; ch++) {
+			const gain = CHANNEL_GAINS[ch] ?? 1;
+			mSum += gain * (mRunning[ch] / (mChunks * stepSamples));
+			stSum += gain * (stRunning[ch] / (stChunks * stepSamples));
+		}
+
+		momentary.push([step * 100, -0.691 + 10 * Math.log10(Math.max(mSum, 1e-10))]);
+		shortTerm.push([step * 100, -0.691 + 10 * Math.log10(Math.max(stSum, 1e-10))]);
 	}
 
 	return { momentary, shortTerm, peak };

@@ -54,13 +54,21 @@ File: `src/lib/components/Results.svelte`
 
 ### Step 6 — D3 Plot
 File: `src/lib/components/Plot.svelte`
-- Draw waveform from raw AudioBuffer samples using D3
-- Overlay momentary LUFS curve for the selected band
+- Single SVG with shared time axis (no Wavesurfer)
+- **Waveform layer**: sample AudioBuffer at ~1 px resolution → D3 area chart (min/max envelope), muted color
+- **Loudness curve layer**: momentary or short-term LUFS values rendered as a polyline segmented into short strokes, each colored by LUFS value via `d3.scaleSequential(d3.interpolateRdYlGn)` mapped to the range [-30, -20] LUFS (smoothly blue → green → yellow → red; values outside range clamped)
+  - ≤ -30 LUFS → blue, -30 to -25 → green, -25 to -20 → yellow, ≥ -20 → red, smoothly interpolated
 - Band selection dropdown + momentary/short-term toggle in Results.svelte
 - Hover tooltip showing time (mm:ss), peak (dBFS), momentary LUFS, short-term LUFS
+- Moving playhead: vertical SVG line that tracks current playback position
 
 ### Step 7 — Playback on click
-Files: `src/lib/components/Plot.svelte`, `src/lib/state/results.svelte.ts`
-- Click on plot → play `AudioFile.bandBuffers[selectedBand]` from clicked time offset via AudioContext
+Files: `src/lib/components/Plot.svelte`, `src/lib/state/results.svelte.ts`, `src/lib/audio/playback.ts`
+- `playback.ts`: thin wrapper around `AudioContext` + `AudioBufferSourceNode`
+  - `play(buffer, offsetSeconds)` — stops any current source, creates new one, starts it
+  - `stop()` — stops and nulls the current source
+  - Exposes `currentTime` as a reactive `$state` value (updated via `requestAnimationFrame` loop while playing)
+- Click on plot → derive time offset from x-coordinate → call `play(bandBuffer, offset)`
 - If full band selected, play original `AudioFile.buffer`
 - Global playback state: only one file plays at a time; clicking another stops the current one
+- Playhead line in SVG bound to `currentTime` from playback state
