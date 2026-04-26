@@ -55,4 +55,11 @@ For now, nothing is persisted, the page fully resets on refresh. In the future, 
 - Tailwind CSS for styling
 - D3.js for plotting the graphs
 - WaveSurfer.js for audio playback and visualization
-- @domchristie/needles for loudness measurement_
+- @domchristie/needles for loudness measurement
+
+# Styling
+- Dark theme
+- Nothing round, only rectangles and straight lines
+- 90s cassette tape aesthetic
+- Monospaced font for all text
+- minimalistic design, no unnecessary UI elements, only the essentials for the functionality described above

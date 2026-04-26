@@ -1,35 +1,45 @@
 <script lang="ts">
-	// Top-right panel: frequency band configuration + process / reset buttons
-	// Shows a progress bar while analysis is running
-
+	// Top-right panel: frequency band config + process / reset buttons
 	import { options } from '$lib/state/options.svelte';
-	import { files } from '$lib/state/files.svelte';
-	import { results } from '$lib/state/results.svelte';
-	import { analyzeFiles } from '$lib/audio/analysis';
-
-	// TODO: startAnalysis() — call analyzeFiles(), update options.isAnalyzing, write results
-	// TODO: reset() — clear files.list, results.data, restore default frequencies
 </script>
 
-<section>
-	<!-- Frequency list -->
-	<ul>
-		{#each options.frequencies as freq}
-			<li>
-				{freq} Hz
-				<!-- TODO: editable input + remove button -->
-			</li>
-		{/each}
-	</ul>
-	<!-- TODO: add-frequency button -->
+<section class="h-full flex flex-col">
+	<div class="px-3 py-2 border-b border-[#3a3a3a] text-[#c8a84b] uppercase tracking-widest text-xs">
+		OPTIONS
+	</div>
 
-	<!-- Progress bar (visible while analyzing) -->
+	<div class="flex-1 px-3 py-3 flex flex-col gap-3">
+		<!-- Frequency list -->
+		<div class="text-[#6a6a6a] text-xs uppercase tracking-widest mb-1">Crossover Frequencies</div>
+		<ul class="flex flex-col gap-1">
+			{#each options.frequencies as freq}
+				<li class="flex items-center gap-2">
+					<span class="tabular-nums w-16 text-right">{freq}</span>
+					<span class="text-[#6a6a6a]">Hz</span>
+					<!-- TODO: remove button -->
+				</li>
+			{/each}
+		</ul>
+		<!-- TODO: add-frequency input -->
+	</div>
+
+	<!-- Progress bar -->
 	{#if options.isAnalyzing}
-		<progress></progress>
+		<div class="mx-3 mb-2 h-1 bg-[#1a1a1a] border border-[#3a3a3a]">
+			<div class="h-full bg-[#c8a84b] w-1/2 transition-all"></div>
+		</div>
 	{/if}
 
-	<button disabled={options.isAnalyzing}>
-		{options.isAnalyzing ? 'Analyzing…' : 'Analyze'}
-	</button>
-	<button>Reset</button>
+	<!-- Action buttons -->
+	<div class="flex border-t border-[#3a3a3a]">
+		<button
+			disabled={options.isAnalyzing}
+			class="flex-1 py-2 text-xs uppercase tracking-widest bg-[#c8a84b] text-[#0e0e0e] font-bold hover:bg-[#d4b85a] disabled:opacity-40 disabled:cursor-not-allowed"
+		>
+			{options.isAnalyzing ? 'ANALYZING…' : 'ANALYZE'}
+		</button>
+		<button class="px-4 py-2 text-xs uppercase tracking-widest border-l border-[#3a3a3a] text-[#6a6a6a] hover:text-[#d4d0c8]">
+			RESET
+		</button>
+	</div>
 </section>

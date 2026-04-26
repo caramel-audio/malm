@@ -1,2 +1,20 @@
 @import 'tailwindcss';
 @plugin '@tailwindcss/typography';
+
+@theme {
+	--font-mono: 'Courier New', Courier, monospace;
+	--color-bg: #0e0e0e;
+	--color-panel: #1a1a1a;
+	--color-border: #3a3a3a;
+	--color-accent: #c8a84b;
+	--color-text: #d4d0c8;
+	--color-text-dim: #6a6a6a;
+}
+
+*, *::before, *::after {
+	border-radius: 0 !important;
+}
+
+html, body {
+	height: 100%;
+}
