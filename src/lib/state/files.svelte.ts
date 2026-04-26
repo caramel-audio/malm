@@ -1,6 +1,3 @@
-// State for uploaded audio files
-// Each entry holds the File object, decoded AudioBuffer, metadata, and per-band buffers
-
 export type AudioFile = {
 	id: string;
 	file: File;
@@ -8,12 +5,51 @@ export type AudioFile = {
 	artist: string;
 	duration: number; // seconds
 	buffer: AudioBuffer | null;
-	// Filtered buffers keyed by band label (e.g. "0-80", "80-200", "full")
 	bandBuffers: Record<string, AudioBuffer>;
 };
 
 export const files = $state<{ list: AudioFile[] }>({ list: [] });
 
-// TODO: addFile(file: File) — decode audio, extract metadata, push to list
-// TODO: removeFile(id: string)
-// TODO: reorderFiles(from: number, to: number)
+function parseMetadata(file: File): { name: string; artist: string } {
+	const base = file.name.replace(/\.[^.]+$/, '');
+	const sep = base.indexOf(' - ');
+	if (sep !== -1) {
+		return { artist: base.slice(0, sep), name: base.slice(sep + 3) };
+	}
+	return { name: base, artist: '' };
+}
+
+export async function addFiles(fileList: FileList | File[]): Promise<void> {
+	const ctx = new AudioContext();
+	const items = Array.from(fileList);
+
+	await Promise.all(
+		items.map(async (file) => {
+			const arrayBuffer = await file.arrayBuffer();
+			const buffer = await ctx.decodeAudioData(arrayBuffer);
+			const { name, artist } = parseMetadata(file);
+			files.list.push({
+				id: crypto.randomUUID(),
+				file,
+				name,
+				artist,
+				duration: buffer.duration,
+				buffer,
+				bandBuffers: {}
+			});
+		})
+	);
+
+	ctx.close();
+}
+
+export function removeFile(id: string): void {
+	const idx = files.list.findIndex((f) => f.id === id);
+	if (idx !== -1) files.list.splice(idx, 1);
+}
+
+export function reorderFiles(from: number, to: number): void {
+	if (from === to) return;
+	const [item] = files.list.splice(from, 1);
+	files.list.splice(to, 0, item);
+}

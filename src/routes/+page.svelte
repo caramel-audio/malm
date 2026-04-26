@@ -6,7 +6,7 @@
 
 <main class="flex flex-col h-screen">
 	<!-- Top row: Upload (left) + Options (right) -->
-	<div class="flex border-b border-[#3a3a3a]" style="height: 280px;">
+	<div class="flex border-b border-[#3a3a3a] h-80">
 		<div class="w-2/3 border-r border-[#3a3a3a]">
 			<Upload />
 		</div>
