@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import * as d3 from 'd3';
 	import type { AudioFile } from '$lib/state/files.svelte';
 	import type { FileResult } from '$lib/state/results.svelte';
@@ -89,6 +90,17 @@
 			return { min, max };
 		});
 	}
+
+	$effect(() => {
+		const band = selectedBand; // tracked
+		untrack(() => {
+			if (!playback.isPlaying || playback.currentFileId !== audioFile.id) return;
+			const buffer = band === 'full'
+				? audioFile.buffer
+				: (audioFile.bandBuffers[band] ?? audioFile.buffer);
+			if (buffer) play(audioFile.id, buffer, playback.currentTime);
+		});
+	});
 
 	$effect(() => {
 		if (!container || !audioFile.buffer) return;
