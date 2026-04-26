@@ -2,7 +2,18 @@
 	import Upload from '$lib/components/Upload.svelte';
 	import Options from '$lib/components/Options.svelte';
 	import Results from '$lib/components/Results.svelte';
+	import { togglePlayPause } from '$lib/audio/playback.svelte';
+
+	function handleKeydown(event: KeyboardEvent) {
+		if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+		if (event.key === ' ' || event.key === 'k') {
+			event.preventDefault();
+			togglePlayPause();
+		}
+	}
 </script>
+
+<svelte:window onkeydown={handleKeydown} />
 
 <main class="flex flex-col h-screen">
 	<!-- Top row: Upload (left) + Options (right) -->

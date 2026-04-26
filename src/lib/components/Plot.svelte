@@ -2,6 +2,7 @@
 	import * as d3 from 'd3';
 	import type { AudioFile } from '$lib/state/files.svelte';
 	import type { FileResult } from '$lib/state/results.svelte';
+	import { playback, play, togglePlayPause } from '$lib/audio/playback.svelte';
 
 	type Props = {
 		audioFile: AudioFile;
@@ -13,6 +14,7 @@
 	let { audioFile, result, selectedBand, loudnessType }: Props = $props();
 
 	let container: HTMLDivElement;
+	let containerWidth = $state(0);
 
 	const MARGIN = { top: 8, right: 16, bottom: 24, left: 48 };
 	const HEIGHT = 180;
@@ -28,6 +30,17 @@
 	};
 
 	let hoverInfo = $state<HoverInfo | null>(null);
+
+	const isThisFileActive = $derived(playback.currentFileId === audioFile.id);
+	const isThisFilePlaying = $derived(isThisFileActive && playback.isPlaying);
+
+	const playheadLeft = $derived(
+		playback.isPlaying && playback.currentFileId === audioFile.id
+			? (playback.currentTime / audioFile.duration) *
+					(containerWidth - MARGIN.left - MARGIN.right) +
+				MARGIN.left
+			: null
+	);
 
 	function nearestValue(data: [number, number][], timeMs: number): number | null {
 		if (!data.length) return null;
@@ -183,6 +196,15 @@
 			.attr('height', innerH)
 			.attr('fill', 'transparent')
 			.style('cursor', 'crosshair')
+			.on('click', (event) => {
+				const [mx] = d3.pointer(event);
+				const offsetSeconds = Math.max(0, xScale.invert(mx));
+				const buffer =
+					selectedBand === 'full'
+						? audioFile.buffer
+						: (audioFile.bandBuffers[selectedBand] ?? audioFile.buffer);
+				if (buffer) play(audioFile.id, buffer, offsetSeconds);
+			})
 			.on('mousemove', (event) => {
 				const [mx] = d3.pointer(event);
 				const t = xScale.invert(mx);
@@ -204,13 +226,37 @@
 
 <div class="border-b border-[#3a3a3a]">
 	<div class="flex items-baseline gap-3 px-3 py-2 border-b border-[#2a2a2a]">
+		<button
+			class="text-[#6a6a6a] hover:text-[#d4d0c8] text-xs font-mono uppercase tracking-widest transition-colors"
+			onclick={() => {
+				if (isThisFileActive) {
+					togglePlayPause();
+				} else {
+					const buffer =
+						selectedBand === 'full'
+							? audioFile.buffer
+							: (audioFile.bandBuffers[selectedBand] ?? audioFile.buffer);
+					if (buffer) play(audioFile.id, buffer, 0);
+				}
+			}}
+		>{isThisFilePlaying ? '[PAUS]' : '[PLAY]'}</button>
 		<span class="text-[#c8a84b] text-xs uppercase tracking-widest font-bold">
 			{audioFile.artist ? `${audioFile.artist} — ` : ''}{audioFile.name}
 		</span>
 		<span class="text-[#3a3a3a] text-xs">{formatTime(audioFile.duration)}</span>
 	</div>
 
-	<div bind:this={container} class="w-full bg-[#0f0f0f]"></div>
+	<div class="relative" bind:clientWidth={containerWidth}>
+		<div bind:this={container} class="w-full bg-[#0f0f0f]"></div>
+		{#if playheadLeft !== null}
+			<div
+				class="absolute top-0 w-px bg-white/40 pointer-events-none"
+				style:left="{playheadLeft}px"
+				style:top="{MARGIN.top}px"
+				style:height="{HEIGHT - MARGIN.top - MARGIN.bottom}px"
+			></div>
+		{/if}
+	</div>
 
 	{#if hoverInfo}
 		<div class="flex gap-6 px-3 py-1 border-t border-[#2a2a2a] text-[10px] font-mono text-[#888]">
