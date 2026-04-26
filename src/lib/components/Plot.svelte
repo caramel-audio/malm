@@ -190,6 +190,15 @@
 			.attr('stroke-width', 1)
 			.attr('display', 'none');
 
+		const hoverLabel = g
+			.append('text')
+			.attr('y', 12)
+			.style('font-family', 'monospace')
+			.style('font-size', '10px')
+			.attr('text-anchor', 'middle')
+			.attr('pointer-events', 'none')
+			.attr('display', 'none');
+
 		// Mouse overlay
 		g.append('rect')
 			.attr('width', innerW)
@@ -209,16 +218,21 @@
 				const [mx] = d3.pointer(event);
 				const t = xScale.invert(mx);
 				const timeMs = t * 1000;
+				const mom = nearestValue(br?.momentary ?? [], timeMs);
+				const st = nearestValue(br?.shortTerm ?? [], timeMs);
+				const pk = nearestValue(br?.peak ?? [], timeMs);
+				const lufsVal = loudnessType === 'momentary' ? mom : st;
 				hoverLine.attr('x1', mx).attr('x2', mx).attr('display', null);
-				hoverInfo = {
-					time: t,
-					momentary: nearestValue(br?.momentary ?? [], timeMs),
-					shortTerm: nearestValue(br?.shortTerm ?? [], timeMs),
-					peak: nearestValue(br?.peak ?? [], timeMs),
-				};
+				hoverLabel
+					.attr('x', mx)
+					.attr('fill', lufsVal !== null ? lufsColor(lufsVal) : '#ffffff88')
+					.text(lufsVal !== null ? lufsVal.toFixed(1) : '')
+					.attr('display', lufsVal !== null ? null : 'none');
+				hoverInfo = { time: t, momentary: mom, shortTerm: st, peak: pk };
 			})
 			.on('mouseleave', () => {
 				hoverLine.attr('display', 'none');
+				hoverLabel.attr('display', 'none');
 				hoverInfo = null;
 			});
 	});
