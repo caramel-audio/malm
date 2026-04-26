@@ -225,9 +225,9 @@
 </script>
 
 <div class="border-b border-[#3a3a3a]">
-	<div class="flex items-baseline gap-3 px-3 py-2 border-b border-[#2a2a2a]">
+	<div class="flex items-center gap-3 px-3 py-2 border-b border-[#2a2a2a]">
 		<button
-			class="text-[#6a6a6a] hover:text-[#d4d0c8] text-xs font-mono uppercase tracking-widest transition-colors"
+			class="text-[#6a6a6a] hover:text-[#d4d0c8] transition-colors cursor-pointer"
 			onclick={() => {
 				if (isThisFileActive) {
 					togglePlayPause();
@@ -239,7 +239,17 @@
 					if (buffer) play(audioFile.id, buffer, 0);
 				}
 			}}
-		>{isThisFilePlaying ? '[PAUS]' : '[PLAY]'}</button>
+		>
+			{#if isThisFilePlaying}
+				<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4">
+					<path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" />
+				</svg>
+			{:else}
+				<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4">
+					<path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
+				</svg>
+			{/if}
+		</button>
 		<span class="text-[#c8a84b] text-xs uppercase tracking-widest font-bold">
 			{audioFile.artist ? `${audioFile.artist} — ` : ''}{audioFile.name}
 		</span>
