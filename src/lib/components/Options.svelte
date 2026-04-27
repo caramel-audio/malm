@@ -158,7 +158,7 @@
 				onclick={handleAnalyze}
 				class="flex-1 py-2 text-xs uppercase tracking-widest bg-secondary-400 text-gray-950 font-bold hover:bg-secondary-300 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
 			>
-				{options.isAnalyzing ? 'ANALYZING…' : 'ANALYZE'}
+				{options.isAnalyzing ? 'MALMING…' : 'ANALYZE'}
 			</button>
 		</div>
 		{#if options.isAnalyzing}
