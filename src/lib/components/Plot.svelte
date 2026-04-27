@@ -300,7 +300,10 @@
 				</svg>
 			{/if}
 		</button>
-		<span class="text-[#c8a84b] text-xs uppercase tracking-widest font-bold">
+			{#if lufsOffset !== 0}
+				<span class="text-[#6a6a6a] text-xs font-mono">{lufsOffset > 0 ? '+' : ''}{lufsOffset.toFixed(1)} dB</span>
+			{/if}
+			<span class="text-[#c8a84b] text-xs uppercase tracking-widest font-bold">
 			{audioFile.artist ? `${audioFile.artist} — ` : ''}{audioFile.name}
 		</span>
 		{#if integratedLufs !== undefined && isFinite(integratedLufs)}
