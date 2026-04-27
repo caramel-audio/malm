@@ -17,8 +17,8 @@
 
 <main class="flex flex-col h-screen">
 	<!-- Top row: Upload (left) + Options (right) -->
-	<div class="flex border-b border-[#3a3a3a] h-80">
-		<div class="w-2/3 border-r border-[#3a3a3a]">
+	<div class="flex border-b border-gray-700 h-80">
+		<div class="w-2/3 border-r border-gray-700">
 			<Upload />
 		</div>
 		<div class="w-1/3">

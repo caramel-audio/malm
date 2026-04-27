@@ -36,29 +36,29 @@
 
 <section class="flex flex-col h-full">
 	<!-- Controls bar -->
-	<div class="flex items-center gap-4 px-3 py-2 border-b border-[#3a3a3a] text-xs">
-		<label class="flex items-center gap-2 text-[#6a6a6a] uppercase tracking-widest">
+	<div class="flex items-center gap-4 px-3 py-2 border-b border-gray-700 text-xs">
+		<label class="flex items-center gap-2 text-gray-400 uppercase tracking-widest">
 			BAND
-			<select bind:value={selectedBand} class="bg-[#1a1a1a] border border-[#3a3a3a] text-[#d4d0c8] px-2 py-1 uppercase">
+			<select bind:value={selectedBand} class="bg-gray-900 border border-gray-700 text-gray-100 px-2 py-1 uppercase">
 				{#each (results.data[0]?.bands ?? [{ label: 'full' }]) as band (band.label)}
 					<option value={band.label}>{band.label.toUpperCase()}</option>
 				{/each}
 			</select>
 		</label>
-		<label class="flex items-center gap-2 text-[#6a6a6a] uppercase tracking-widest">
+		<label class="flex items-center gap-2 text-gray-400 uppercase tracking-widest">
 			LOUDNESS
-			<select bind:value={loudnessType} class="bg-[#1a1a1a] border border-[#3a3a3a] text-[#d4d0c8] px-2 py-1 uppercase">
+			<select bind:value={loudnessType} class="bg-gray-900 border border-gray-700 text-gray-100 px-2 py-1 uppercase">
 				<option value="momentary">MOMENTARY</option>
 				<option value="shortTerm">SHORT-TERM</option>
 			</select>
 		</label>
 		{#if results.data.length > 1}
-			<label class="flex items-center gap-2 text-[#6a6a6a] uppercase tracking-widest cursor-pointer select-none">
-				<input type="checkbox" bind:checked={normalizeToQuietest} class="accent-[#c8a84b]" />
+			<label class="flex items-center gap-2 text-gray-400 uppercase tracking-widest cursor-pointer select-none">
+				<input type="checkbox" bind:checked={normalizeToQuietest} class="accent-secondary-400" />
 				NORMALIZE TO QUIETEST
 			</label>
 			{#if normalizeToQuietest && quietestFile}
-				<span class="text-[#6a6a6a] uppercase tracking-widest font-bold">
+				<span class="text-gray-400 uppercase tracking-widest font-bold">
 					({quietestFile.artist ? `${quietestFile.artist} — ` : ''}{quietestFile.name})
 				</span>
 			{/if}
@@ -68,11 +68,11 @@
 	<!-- Plots -->
 	<div class="flex-1 overflow-y-auto">
 		{#if files.list.length === 0}
-			<div class="flex items-center justify-center h-full text-[#3a3a3a] text-xs uppercase tracking-widest">
+			<div class="flex items-center justify-center h-full text-gray-500 text-xs uppercase tracking-widest">
 				NO FILES LOADED
 			</div>
 		{:else if results.data.length === 0}
-			<div class="flex items-center justify-center h-full text-[#3a3a3a] text-xs uppercase tracking-widest">
+			<div class="flex items-center justify-center h-full text-gray-500 text-xs uppercase tracking-widest">
 				PRESS ANALYZE TO START
 			</div>
 		{:else}

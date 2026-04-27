@@ -154,12 +154,12 @@
 		g.append('g')
 			.attr('transform', `translate(0,${innerH})`)
 			.call(d3.axisBottom(xScale).tickFormat((d) => formatTime(+d)).ticks(8))
-			.call((ax) => ax.select('.domain').attr('stroke', '#3a3a3a'))
-			.call((ax) => ax.selectAll('.tick line').attr('stroke', '#3a3a3a'))
+			.call((ax) => ax.select('.domain').attr('stroke', '#4d4d4d'))
+			.call((ax) => ax.selectAll('.tick line').attr('stroke', '#4d4d4d'))
 			.call((ax) =>
 				ax
 					.selectAll('.tick text')
-					.attr('fill', '#6a6a6a')
+					.attr('fill', '#999999')
 					.style('font-family', 'monospace')
 					.style('font-size', '10px')
 			);
@@ -171,12 +171,12 @@
 					.tickValues([-40, -35, -30, -25, -20, -15, -10])
 					.tickFormat((d) => `${d}`)
 			)
-			.call((ax) => ax.select('.domain').attr('stroke', '#3a3a3a'))
-			.call((ax) => ax.selectAll('.tick line').attr('stroke', '#3a3a3a'))
+			.call((ax) => ax.select('.domain').attr('stroke', '#4d4d4d'))
+			.call((ax) => ax.selectAll('.tick line').attr('stroke', '#4d4d4d'))
 			.call((ax) =>
 				ax
 					.selectAll('.tick text')
-					.attr('fill', '#6a6a6a')
+					.attr('fill', '#999999')
 					.style('font-family', 'monospace')
 					.style('font-size', '10px')
 			);
@@ -189,7 +189,7 @@
 			.y0((d) => yWave(d.min))
 			.y1((d) => yWave(d.max));
 
-		g.append('path').datum(envelope).attr('d', areaGen).attr('fill', '#2a2a2a');
+		g.append('path').datum(envelope).attr('d', areaGen).attr('fill', '#333333');
 
 		// Loudness colored segments
 		if (lufsData.length > 1) {
@@ -222,7 +222,7 @@
 			.append('line')
 			.attr('y1', 0)
 			.attr('y2', innerH)
-			.attr('stroke', '#ffffff22')
+			.attr('stroke', '#ffffff33')
 			.attr('stroke-width', 1)
 			.attr('display', 'none');
 
@@ -274,10 +274,10 @@
 	});
 </script>
 
-<div class="border-b border-[#3a3a3a]">
-	<div class="flex items-center gap-3 px-3 py-2 border-b border-[#2a2a2a]">
+<div class="border-b border-gray-700">
+	<div class="flex items-center gap-3 px-3 py-2 border-b border-gray-800">
 		<button
-			class="text-[#6a6a6a] hover:text-[#d4d0c8] transition-colors cursor-pointer"
+			class="text-gray-400 hover:text-white transition-colors cursor-pointer"
 			onclick={() => {
 				if (isThisFileActive) {
 					togglePlayPause();
@@ -301,19 +301,19 @@
 			{/if}
 		</button>
 			{#if lufsOffset !== 0}
-				<span class="text-[#6a6a6a] text-xs font-mono">{lufsOffset > 0 ? '+' : ''}{lufsOffset.toFixed(1)} dB</span>
+				<span class="text-gray-400 text-xs font-mono">{lufsOffset > 0 ? '+' : ''}{lufsOffset.toFixed(1)} dB</span>
 			{/if}
-			<span class="text-[#c8a84b] text-xs uppercase tracking-widest font-bold">
+			<span class="text-secondary-400 text-xs uppercase tracking-widest font-bold">
 			{audioFile.artist ? `${audioFile.artist} — ` : ''}{audioFile.name}
 		</span>
 		{#if integratedLufs !== undefined && isFinite(integratedLufs)}
-			<span class="text-[#6a6a6a] text-xs font-mono">LUFS-I: {integratedLufs.toFixed(1)}</span>
+			<span class="text-gray-400 text-xs font-mono">LUFS-I: {integratedLufs.toFixed(1)}</span>
 		{/if}
-		<span class="text-[#3a3a3a] text-xs">{formatTime(audioFile.duration)}</span>
+		<span class="text-gray-500 text-xs">{formatTime(audioFile.duration)}</span>
 	</div>
 
 	<div class="relative" bind:clientWidth={containerWidth}>
-		<div bind:this={container} class="w-full bg-[#0f0f0f]"></div>
+		<div bind:this={container} class="w-full bg-gray-950"></div>
 		{#if playheadLeft !== null}
 			<div
 				class="absolute top-0 w-px bg-white/40 pointer-events-none"
@@ -325,14 +325,14 @@
 	</div>
 
 	{#if hoverInfo}
-		<div class="flex gap-6 px-3 py-1 border-t border-[#2a2a2a] text-[10px] font-mono text-[#888]">
+		<div class="flex gap-6 px-3 py-1 border-t border-gray-800 text-[10px] font-mono text-gray-300">
 			<span>TIME {formatTime(hoverInfo.time)}</span>
 			<span>PEAK {hoverInfo.peak?.toFixed(1) ?? '—'} dBFS</span>
 			<span>MOMENTARY {hoverInfo.momentary !== null ? (hoverInfo.momentary + lufsOffset).toFixed(1) : '—'} LUFS</span>
 			<span>SHORT-TERM {hoverInfo.shortTerm !== null ? (hoverInfo.shortTerm + lufsOffset).toFixed(1) : '—'} LUFS</span>
 		</div>
 	{:else}
-		<div class="px-3 py-1 border-t border-[#2a2a2a] text-[10px] font-mono text-[#3a3a3a]">
+		<div class="px-3 py-1 border-t border-gray-800 text-[10px] font-mono text-gray-500">
 			HOVER TO INSPECT
 		</div>
 	{/if}

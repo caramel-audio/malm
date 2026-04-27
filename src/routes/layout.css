@@ -3,12 +3,83 @@
 
 @theme {
 	--font-mono: 'Courier New', Courier, monospace;
-	--color-bg: #0e0e0e;
-	--color-panel: #1a1a1a;
-	--color-border: #3a3a3a;
-	--color-accent: #c8a84b;
-	--color-text: #d4d0c8;
-	--color-text-dim: #6a6a6a;
+
+	--color-gray-50: #f2f2f2;
+	--color-gray-100: #e6e6e6;
+	--color-gray-200: #cccccc;
+	--color-gray-300: #b3b3b3;
+	--color-gray-400: #999999;
+	--color-gray-500: #808080;
+	--color-gray-600: #666666;
+	--color-gray-700: #4d4d4d;
+	--color-gray-800: #333333;
+	--color-gray-900: #1a1a1a;
+	--color-gray-950: #0d0d0d;
+
+	--color-primary-50: #ffeee5;
+	--color-primary-100: #ffdecc;
+	--color-primary-200: #ffbd99;
+	--color-primary-300: #ff9c66;
+	--color-primary-400: #ff7a33;
+	--color-primary-500: #ff5900;
+	--color-primary-600: #cc4700;
+	--color-primary-700: #993600;
+	--color-primary-800: #662400;
+	--color-primary-900: #331200;
+	--color-primary-950: #1a0900;
+
+	--color-secondary-50: #fff4e5;
+	--color-secondary-100: #ffe8cc;
+	--color-secondary-200: #ffd199;
+	--color-secondary-300: #ffba66;
+	--color-secondary-400: #ffa333;
+	--color-secondary-500: #ff8c00;
+	--color-secondary-600: #cc7000;
+	--color-secondary-700: #995400;
+	--color-secondary-800: #663800;
+	--color-secondary-900: #331c00;
+	--color-secondary-950: #1a0e00;
+
+	--color-success-50: #e5fff0;
+	--color-success-100: #ccffe0;
+	--color-success-200: #99ffc2;
+	--color-success-300: #66ffa3;
+	--color-success-400: #33ff85;
+	--color-success-500: #00ff66;
+	--color-success-600: #00cc52;
+	--color-success-700: #00993d;
+	--color-success-800: #006629;
+	--color-success-900: #003314;
+	--color-success-950: #001a0a;
+
+	--color-danger-50: #ffe5e5;
+	--color-danger-100: #ffcccc;
+	--color-danger-200: #ff9999;
+	--color-danger-300: #ff6666;
+	--color-danger-400: #ff3333;
+	--color-danger-500: #ff0000;
+	--color-danger-600: #cc0000;
+	--color-danger-700: #990000;
+	--color-danger-800: #660000;
+	--color-danger-900: #330000;
+	--color-danger-950: #1a0000;
+
+	--color-fft-50: #e5fffe;
+	--color-fft-100: #ccfffd;
+	--color-fft-200: #99fffc;
+	--color-fft-300: #66fffa;
+	--color-fft-400: #33fff8;
+	--color-fft-500: #00fff7;
+	--color-fft-600: #00ccc5;
+	--color-fft-700: #009994;
+	--color-fft-800: #006663;
+	--color-fft-900: #003331;
+	--color-fft-950: #001a19;
+
+	--text-2xs: 0.625rem;
+	--text-2xs--line-height: 0.8rem;
+	--text-3xs: 0.5rem;
+	--text-3xs--line-height: 0.625rem;
 }
 
 *, *::before, *::after {
