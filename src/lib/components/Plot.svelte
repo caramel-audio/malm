@@ -258,11 +258,12 @@
 				const st = nearestValue(br?.shortTerm ?? [], timeMs);
 				const pk = nearestValue(br?.peak ?? [], timeMs);
 				const lufsVal = loudnessType === 'momentary' ? mom : st;
+				const lufsValOffset = lufsVal !== null ? lufsVal + offset : null;
 				hoverLine.attr('x1', mx).attr('x2', mx).attr('display', null);
 				hoverLabel
 					.attr('x', mx)
-					.attr('fill', lufsVal !== null ? lufsColor(lufsVal) : '#ffffff88')
-					.text(lufsVal !== null ? lufsVal.toFixed(1) : '')
+					.attr('fill', lufsValOffset !== null ? lufsColor(lufsValOffset) : '#ffffff88')
+					.text(lufsValOffset !== null ? lufsValOffset.toFixed(1) : '')
 					.attr('display', lufsVal !== null ? null : 'none');
 				hoverInfo = { time: t, momentary: mom, shortTerm: st, peak: pk };
 			})
