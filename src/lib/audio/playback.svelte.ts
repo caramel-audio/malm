@@ -18,7 +18,7 @@ function tick() {
 	}
 }
 
-export function play(fileId: string, buffer: AudioBuffer, offsetSeconds: number): void {
+export function play(fileId: string, buffer: AudioBuffer, offsetSeconds: number, gainDb = 0): void {
 	stop();
 
 	if (!ctx) ctx = new AudioContext();
@@ -26,7 +26,11 @@ export function play(fileId: string, buffer: AudioBuffer, offsetSeconds: number)
 
 	source = ctx.createBufferSource();
 	source.buffer = buffer;
-	source.connect(ctx.destination);
+
+	const gainNode = ctx.createGain();
+	gainNode.gain.value = Math.pow(10, gainDb / 20);
+	source.connect(gainNode);
+	gainNode.connect(ctx.destination);
 
 	startContextTime = ctx.currentTime;
 	startOffset = Math.max(0, offsetSeconds);

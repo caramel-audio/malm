@@ -10,9 +10,10 @@
 		result: FileResult;
 		selectedBand: string;
 		loudnessType: 'momentary' | 'shortTerm';
+		lufsOffset?: number;
 	};
 
-	let { audioFile, result, selectedBand, loudnessType }: Props = $props();
+	let { audioFile, result, selectedBand, loudnessType, lufsOffset = 0 }: Props = $props();
 
 	let container: HTMLDivElement;
 	let containerWidth = $state(0);
@@ -102,7 +103,7 @@
 			const buffer = band === 'full'
 				? audioFile.buffer
 				: (audioFile.bandBuffers[band] ?? audioFile.buffer);
-			if (buffer) play(audioFile.id, buffer, playback.currentTime);
+			if (buffer) play(audioFile.id, buffer, playback.currentTime, lufsOffset);
 		});
 	});
 
@@ -113,7 +114,8 @@
 		const innerW = width - MARGIN.left - MARGIN.right;
 		const innerH = HEIGHT - MARGIN.top - MARGIN.bottom;
 
-		const lufsData = loudnessData;
+		const offset = lufsOffset;
+		const lufsData = loudnessData.map(([t, v]) => [t, v + offset] as [number, number]);
 		const br = bandResult;
 
 		d3.select(container).selectAll('svg').remove();
@@ -228,7 +230,7 @@
 					selectedBand === 'full'
 						? audioFile.buffer
 						: (audioFile.bandBuffers[selectedBand] ?? audioFile.buffer);
-				if (buffer) play(audioFile.id, buffer, offsetSeconds);
+				if (buffer) play(audioFile.id, buffer, offsetSeconds, lufsOffset);
 			})
 			.on('mousemove', (event) => {
 				const [mx] = d3.pointer(event);
@@ -266,7 +268,7 @@
 						selectedBand === 'full'
 							? audioFile.buffer
 							: (audioFile.bandBuffers[selectedBand] ?? audioFile.buffer);
-					if (buffer) play(audioFile.id, buffer, 0);
+					if (buffer) play(audioFile.id, buffer, 0, lufsOffset);
 				}
 			}}
 		>
@@ -305,8 +307,8 @@
 		<div class="flex gap-6 px-3 py-1 border-t border-[#2a2a2a] text-[10px] font-mono text-[#888]">
 			<span>TIME {formatTime(hoverInfo.time)}</span>
 			<span>PEAK {hoverInfo.peak?.toFixed(1) ?? '—'} dBFS</span>
-			<span>MOMENTARY {hoverInfo.momentary?.toFixed(1) ?? '—'} LUFS</span>
-			<span>SHORT-TERM {hoverInfo.shortTerm?.toFixed(1) ?? '—'} LUFS</span>
+			<span>MOMENTARY {hoverInfo.momentary !== null ? (hoverInfo.momentary + lufsOffset).toFixed(1) : '—'} LUFS</span>
+			<span>SHORT-TERM {hoverInfo.shortTerm !== null ? (hoverInfo.shortTerm + lufsOffset).toFixed(1) : '—'} LUFS</span>
 		</div>
 	{:else}
 		<div class="px-3 py-1 border-t border-[#2a2a2a] text-[10px] font-mono text-[#3a3a3a]">
