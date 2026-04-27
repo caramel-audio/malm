@@ -3,6 +3,31 @@
 
 import type { BandResult } from '$lib/state/results.svelte';
 
+async function measureIntegratedLufs(buffer: AudioBuffer): Promise<number> {
+	const { LoudnessMeter } = await import('@domchristie/needles');
+	return new Promise((resolve) => {
+		const offlineCtx = new OfflineAudioContext(
+			buffer.numberOfChannels,
+			buffer.length,
+			buffer.sampleRate
+		);
+		const source = offlineCtx.createBufferSource();
+		source.buffer = buffer;
+
+		const meter = new LoudnessMeter({
+			source,
+			modes: ['integrated'],
+			workerUri: '/needles-worker.js',
+		});
+
+		meter.on('dataavailable', (event: { data: { mode: string; value: number } }) => {
+			if (event.data.mode === 'integrated') resolve(event.data.value);
+		});
+
+		meter.start();
+	});
+}
+
 function preFilterCoefficients(fs: number) {
 	const db = 3.999843853973347;
 	const f0 = 1681.974450955533;
@@ -121,5 +146,7 @@ export async function measureLoudness(buffer: AudioBuffer): Promise<Omit<BandRes
 		shortTerm.push([step * 100, -0.691 + 10 * Math.log10(Math.max(stSum, 1e-10))]);
 	}
 
-	return { momentary, shortTerm, peak };
+	const integrated = await measureIntegratedLufs(buffer);
+
+	return { momentary, shortTerm, peak, integrated };
 }

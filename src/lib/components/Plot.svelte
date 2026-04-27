@@ -32,6 +32,10 @@
 
 	let hoverInfo = $state<HoverInfo | null>(null);
 
+	const integratedLufs = $derived(
+		(result.bands.find((b) => b.label === 'full') ?? result.bands[0])?.integrated
+	);
+
 	const isThisFileActive = $derived(playback.currentFileId === audioFile.id);
 	const isThisFilePlaying = $derived(isThisFileActive && playback.isPlaying);
 
@@ -279,6 +283,9 @@
 		<span class="text-[#c8a84b] text-xs uppercase tracking-widest font-bold">
 			{audioFile.artist ? `${audioFile.artist} — ` : ''}{audioFile.name}
 		</span>
+		{#if integratedLufs !== undefined && isFinite(integratedLufs)}
+			<span class="text-[#6a6a6a] text-xs font-mono">LUFS-I: {integratedLufs.toFixed(1)}</span>
+		{/if}
 		<span class="text-[#3a3a3a] text-xs">{formatTime(audioFile.duration)}</span>
 	</div>
 

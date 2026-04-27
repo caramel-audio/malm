@@ -7,6 +7,8 @@ export type BandResult = {
 	shortTerm: [number, number][];
 	// Peak dBFS per sample point [timeMs, peakDbfs]
 	peak: [number, number][];
+	// EBU R128 integrated LUFS (gated)
+	integrated: number;
 };
 
 export type FileResult = {
