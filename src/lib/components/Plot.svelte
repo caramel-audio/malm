@@ -3,7 +3,7 @@
 	import * as d3 from 'd3';
 	import type { AudioFile } from '$lib/state/files.svelte';
 	import type { FileResult } from '$lib/state/results.svelte';
-	import { playback, play, togglePlayPause } from '$lib/audio/playback.svelte';
+	import { playback, play, togglePlayPause, setGain } from '$lib/audio/playback.svelte';
 
 	type Props = {
 		audioFile: AudioFile;
@@ -35,6 +35,19 @@
 
 	const integratedLufs = $derived(
 		(result.bands.find((b) => b.label === 'full') ?? result.bands[0])?.integrated
+	);
+
+	const fullBandLufs = $derived(
+		result.bands.find((b) => b.label === 'full')?.integrated ?? null
+	);
+
+	// Gain to apply when playing a band buffer so it sounds proportionally quieter than full spectrum
+	const bandPlaybackGainDb = $derived(
+		selectedBand === 'full' || fullBandLufs === null || bandResult === undefined
+			? 0
+			: isFinite(bandResult.integrated) && isFinite(fullBandLufs)
+				? bandResult.integrated - fullBandLufs
+				: 0
 	);
 
 	const isThisFileActive = $derived(playback.currentFileId === audioFile.id);
@@ -97,13 +110,18 @@
 	}
 
 	$effect(() => {
+		const totalGain = lufsOffset + bandPlaybackGainDb;
+		if (isThisFileActive) setGain(totalGain);
+	});
+
+	$effect(() => {
 		const band = selectedBand; // tracked
 		untrack(() => {
 			if (!playback.isPlaying || playback.currentFileId !== audioFile.id) return;
 			const buffer = band === 'full'
 				? audioFile.buffer
 				: (audioFile.bandBuffers[band] ?? audioFile.buffer);
-			if (buffer) play(audioFile.id, buffer, playback.currentTime, lufsOffset);
+			if (buffer) play(audioFile.id, buffer, playback.currentTime, lufsOffset + bandPlaybackGainDb);
 		});
 	});
 
@@ -230,7 +248,7 @@
 					selectedBand === 'full'
 						? audioFile.buffer
 						: (audioFile.bandBuffers[selectedBand] ?? audioFile.buffer);
-				if (buffer) play(audioFile.id, buffer, offsetSeconds, lufsOffset);
+				if (buffer) play(audioFile.id, buffer, offsetSeconds, lufsOffset + bandPlaybackGainDb);
 			})
 			.on('mousemove', (event) => {
 				const [mx] = d3.pointer(event);
@@ -268,7 +286,7 @@
 						selectedBand === 'full'
 							? audioFile.buffer
 							: (audioFile.bandBuffers[selectedBand] ?? audioFile.buffer);
-					if (buffer) play(audioFile.id, buffer, 0, lufsOffset);
+					if (buffer) play(audioFile.id, buffer, 0, lufsOffset + bandPlaybackGainDb);
 				}
 			}}
 		>

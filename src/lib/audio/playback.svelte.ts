@@ -7,6 +7,7 @@ export const playback = $state({
 
 let ctx: AudioContext | null = null;
 let source: AudioBufferSourceNode | null = null;
+let gainNode: GainNode | null = null;
 let startContextTime = 0;
 let startOffset = 0;
 let rafId: number | null = null;
@@ -27,7 +28,7 @@ export function play(fileId: string, buffer: AudioBuffer, offsetSeconds: number,
 	source = ctx.createBufferSource();
 	source.buffer = buffer;
 
-	const gainNode = ctx.createGain();
+	gainNode = ctx.createGain();
 	gainNode.gain.value = Math.pow(10, gainDb / 20);
 	source.connect(gainNode);
 	gainNode.connect(ctx.destination);
@@ -74,6 +75,12 @@ export async function resume(): Promise<void> {
 	rafId = requestAnimationFrame(tick);
 }
 
+export function setGain(gainDb: number): void {
+	if (gainNode && ctx) {
+		gainNode.gain.setTargetAtTime(Math.pow(10, gainDb / 20), ctx.currentTime, 0.05);
+	}
+}
+
 export async function togglePlayPause(): Promise<void> {
 	if (playback.isPlaying) await pause();
 	else if (playback.isPaused) await resume();
@@ -90,6 +97,7 @@ export function stop(): void {
 		source.disconnect();
 		source = null;
 	}
+	gainNode = null;
 	if (rafId !== null) {
 		cancelAnimationFrame(rafId);
 		rafId = null;

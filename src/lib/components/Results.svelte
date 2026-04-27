@@ -58,8 +58,8 @@
 				NORMALIZE TO QUIETEST
 			</label>
 			{#if normalizeToQuietest && quietestFile}
-				<span class="text-[#c8a84b] uppercase tracking-widest font-bold">
-					{quietestFile.artist ? `${quietestFile.artist} — ` : ''}{quietestFile.name}
+				<span class="text-[#6a6a6a] uppercase tracking-widest font-bold">
+					({quietestFile.artist ? `${quietestFile.artist} — ` : ''}{quietestFile.name})
 				</span>
 			{/if}
 		{/if}
