@@ -53,9 +53,11 @@ export async function renderBand(source: AudioBuffer, band: FreqBand): Promise<A
 		const hp1 = ctx.createBiquadFilter();
 		hp1.type = 'highpass';
 		hp1.frequency.value = band.lowHz;
+		hp1.Q.value = Math.SQRT1_2; // LR4 crossover: two cascaded Butterworth stages
 		const hp2 = ctx.createBiquadFilter();
 		hp2.type = 'highpass';
 		hp2.frequency.value = band.lowHz;
+		hp2.Q.value = Math.SQRT1_2;
 		node.connect(hp1);
 		hp1.connect(hp2);
 		node = hp2;
@@ -65,9 +67,11 @@ export async function renderBand(source: AudioBuffer, band: FreqBand): Promise<A
 		const lp1 = ctx.createBiquadFilter();
 		lp1.type = 'lowpass';
 		lp1.frequency.value = band.highHz;
+		lp1.Q.value = Math.SQRT1_2;
 		const lp2 = ctx.createBiquadFilter();
 		lp2.type = 'lowpass';
 		lp2.frequency.value = band.highHz;
+		lp2.Q.value = Math.SQRT1_2;
 		node.connect(lp1);
 		lp1.connect(lp2);
 		node = lp2;
