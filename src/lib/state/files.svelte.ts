@@ -5,7 +5,6 @@ export type AudioFile = {
 	artist: string;
 	duration: number; // seconds
 	buffer: AudioBuffer | null;
-	bandBuffers: Record<string, AudioBuffer>;
 };
 
 export const files = $state<{ list: AudioFile[] }>({ list: [] });
@@ -34,8 +33,7 @@ export async function addFiles(fileList: FileList | File[]): Promise<void> {
 				name,
 				artist,
 				duration: buffer.duration,
-				buffer,
-				bandBuffers: {}
+				buffer
 			});
 		})
 	);

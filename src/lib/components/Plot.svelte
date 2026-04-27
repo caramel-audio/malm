@@ -4,6 +4,8 @@
 	import type { AudioFile } from '$lib/state/files.svelte';
 	import type { FileResult } from '$lib/state/results.svelte';
 	import { playback, play, togglePlayPause, setGain } from '$lib/audio/playback.svelte';
+	import { buildBands, type FreqBand } from '$lib/audio/filters';
+	import { options } from '$lib/state/options.svelte';
 
 	type Props = {
 		audioFile: AudioFile;
@@ -20,6 +22,9 @@
 
 	const MARGIN = { top: 8, right: 16, bottom: 24, left: 48 };
 	const HEIGHT = 180;
+
+	const bands = $derived(buildBands(options.frequencies));
+	const currentBand = $derived<FreqBand | null>(bands.find((b) => b.label === selectedBand) ?? null);
 
 	const bandResult = $derived(result.bands.find((b) => b.label === selectedBand));
 	const loudnessData = $derived(bandResult?.[loudnessType] ?? []);
@@ -118,10 +123,8 @@
 		const band = selectedBand; // tracked
 		untrack(() => {
 			if (!playback.isPlaying || playback.currentFileId !== audioFile.id) return;
-			const buffer = band === 'full'
-				? audioFile.buffer
-				: (audioFile.bandBuffers[band] ?? audioFile.buffer);
-			if (buffer) play(audioFile.id, buffer, playback.currentTime, lufsOffset + bandPlaybackGainDb);
+			const freqBand = bands.find((b) => b.label === band) ?? null;
+			if (audioFile.buffer) play(audioFile.id, audioFile.buffer, freqBand, playback.currentTime, lufsOffset + bandPlaybackGainDb);
 		});
 	});
 
@@ -244,11 +247,7 @@
 			.on('click', (event) => {
 				const [mx] = d3.pointer(event);
 				const offsetSeconds = Math.max(0, xScale.invert(mx));
-				const buffer =
-					selectedBand === 'full'
-						? audioFile.buffer
-						: (audioFile.bandBuffers[selectedBand] ?? audioFile.buffer);
-				if (buffer) play(audioFile.id, buffer, offsetSeconds, lufsOffset + bandPlaybackGainDb);
+				if (audioFile.buffer) play(audioFile.id, audioFile.buffer, currentBand, offsetSeconds, lufsOffset + bandPlaybackGainDb);
 			})
 			.on('mousemove', (event) => {
 				const [mx] = d3.pointer(event);
@@ -283,11 +282,7 @@
 				if (isThisFileActive) {
 					togglePlayPause();
 				} else {
-					const buffer =
-						selectedBand === 'full'
-							? audioFile.buffer
-							: (audioFile.bandBuffers[selectedBand] ?? audioFile.buffer);
-					if (buffer) play(audioFile.id, buffer, 0, lufsOffset + bandPlaybackGainDb);
+					if (audioFile.buffer) play(audioFile.id, audioFile.buffer, currentBand, 0, lufsOffset + bandPlaybackGainDb);
 				}
 			}}
 		>

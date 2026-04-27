@@ -1,3 +1,5 @@
+import type { FreqBand } from './filters';
+
 export const playback = $state({
 	currentFileId: null as string | null,
 	currentTime: 0,
@@ -19,7 +21,7 @@ function tick() {
 	}
 }
 
-export function play(fileId: string, buffer: AudioBuffer, offsetSeconds: number, gainDb = 0): void {
+export function play(fileId: string, buffer: AudioBuffer, band: FreqBand | null, offsetSeconds: number, gainDb = 0): void {
 	stop();
 
 	if (!ctx) ctx = new AudioContext();
@@ -30,7 +32,37 @@ export function play(fileId: string, buffer: AudioBuffer, offsetSeconds: number,
 
 	gainNode = ctx.createGain();
 	gainNode.gain.value = Math.pow(10, gainDb / 20);
-	source.connect(gainNode);
+
+	let lastNode: AudioNode = source;
+	if (band && (band.lowHz !== null || band.highHz !== null)) {
+		if (band.lowHz !== null) {
+			const hp1 = ctx.createBiquadFilter();
+			hp1.type = 'highpass';
+			hp1.frequency.value = band.lowHz;
+			hp1.Q.value = Math.SQRT1_2;
+			const hp2 = ctx.createBiquadFilter();
+			hp2.type = 'highpass';
+			hp2.frequency.value = band.lowHz;
+			hp2.Q.value = Math.SQRT1_2;
+			lastNode.connect(hp1);
+			hp1.connect(hp2);
+			lastNode = hp2;
+		}
+		if (band.highHz !== null) {
+			const lp1 = ctx.createBiquadFilter();
+			lp1.type = 'lowpass';
+			lp1.frequency.value = band.highHz;
+			lp1.Q.value = Math.SQRT1_2;
+			const lp2 = ctx.createBiquadFilter();
+			lp2.type = 'lowpass';
+			lp2.frequency.value = band.highHz;
+			lp2.Q.value = Math.SQRT1_2;
+			lastNode.connect(lp1);
+			lp1.connect(lp2);
+			lastNode = lp2;
+		}
+	}
+	lastNode.connect(gainNode);
 	gainNode.connect(ctx.destination);
 
 	startContextTime = ctx.currentTime;

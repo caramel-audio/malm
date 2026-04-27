@@ -46,9 +46,8 @@ export async function analyzeFiles(
 
 		const bandResults = await Promise.all(bands.map(async (band) => {
 			signal?.throwIfAborted();
-			const filtered = await renderBand(file.buffer!, band);
+			const filtered = peakClamp(await renderBand(file.buffer!, band));
 			const measurement = await measureLoudness(filtered);
-			file.bandBuffers[band.label] = peakClamp(filtered);
 			done++;
 			onProgress(done / total);
 			return { label: band.label, ...measurement } satisfies BandResult;
