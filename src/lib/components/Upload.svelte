@@ -72,7 +72,7 @@
 	<!-- Drop zone -->
 	<button
 		type="button"
-		class="m-3 border border-dashed flex flex-col items-center justify-center gap-2 py-6 text-xs cursor-pointer transition-colors {dragOver
+		class="m-3 border border-dashed flex flex-col items-center justify-center gap-2 py-6 text-xs cursor-pointer transition-colors {files.list.length === 0 ? 'flex-1' : ''} {dragOver
 			? 'border-secondary-400 text-secondary-400'
 			: 'border-gray-700 text-gray-400 hover:border-secondary-400 hover:text-secondary-400'}"
 		ondrop={onDrop}
@@ -98,7 +98,7 @@
 	/>
 
 	<!-- File list -->
-	<ul class="flex-1 overflow-y-auto">
+	<ul class="{files.list.length > 0 ? 'flex-1' : ''} overflow-y-auto">
 		{#each files.list as f, i (f.id)}
 			<li
 				class="flex items-center gap-3 px-3 py-1.5 border-b border-gray-800 hover:bg-gray-900 {dragSrcIndex === i ? 'opacity-40' : ''}"
