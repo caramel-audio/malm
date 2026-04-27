@@ -1,6 +1,6 @@
 {
-  "name": "MALM",
-  "short_name": "MALM",
+  "name": "malm",
+  "short_name": "malm",
   "icons": [
     {
       "src": "/web-app-manifest-192x192.png",
