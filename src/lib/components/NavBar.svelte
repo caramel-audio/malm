@@ -155,5 +155,5 @@
 </nav>
 
 {#if showInfo}
-	<SplashScreen manual onclose={() => (showInfo = false)} />
+	<SplashScreen onclose={() => (showInfo = false)} />
 {/if}
