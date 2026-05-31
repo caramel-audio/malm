@@ -1,5 +1,4 @@
 <script lang="ts">
-	// Bottom panel: band selector, loudness type selector, one Plot per file
 	import { files } from '$lib/state/files.svelte';
 	import { results } from '$lib/state/results.svelte';
 	import Plot from './Plot.svelte';
@@ -7,6 +6,8 @@
 	let selectedBand = $state('full');
 	let loudnessType = $state<'momentary' | 'shortTerm'>('momentary');
 	let normalizeToQuietest = $state(false);
+
+	const bands = $derived(results.data[0]?.bands ?? [{ label: 'full' }]);
 
 	const fileIntegratedLufs = $derived(
 		results.data.map((r) => ({
@@ -32,48 +33,160 @@
 		if (!entry || !isFinite(entry.lufs) || !isFinite(quietestEntry.lufs)) return 0;
 		return quietestEntry.lufs - entry.lufs;
 	}
+
+	function bandLabel(label: string): string {
+		return label === 'full' ? 'Full' : label;
+	}
 </script>
 
-<section class="flex flex-col h-full">
-	<!-- Controls bar -->
-	<div class="flex items-center gap-4 px-3 py-2 border-b border-gray-700 text-xs">
-		<label class="flex items-center gap-2 text-gray-400 uppercase tracking-widest">
-			BAND
-			<select bind:value={selectedBand} class="bg-gray-900 border border-gray-700 text-gray-100 px-2 py-1 uppercase">
-				{#each (results.data[0]?.bands ?? [{ label: 'full' }]) as band (band.label)}
-					<option value={band.label}>{band.label.toUpperCase()}</option>
+<section class="flex flex-col h-full min-h-0">
+	<!-- Controls: two-column top bar on mobile, left sidebar on sm+ -->
+	<div class="shrink-0 sm:hidden border-b border-gray-700 p-3 flex gap-3">
+
+		<!-- Left column: Band selector -->
+		<div class="flex-1 min-w-0">
+			<div class="text-gray-500 text-xs uppercase tracking-widest mb-1.5">Band</div>
+			<div class="border border-gray-700 flex flex-col">
+				{#each bands as band, i (band.label)}
+					<button
+						onclick={() => selectedBand = band.label}
+						class="px-3 py-1.5 text-xs uppercase tracking-widest text-left transition-colors whitespace-nowrap
+							{i > 0 ? 'border-t border-gray-700' : ''}
+							{selectedBand === band.label
+								? 'bg-gray-800 text-gray-100'
+								: 'text-gray-500 hover:text-gray-300 hover:bg-gray-900'}"
+					>{bandLabel(band.label)}</button>
 				{/each}
-			</select>
-		</label>
-		<label class="flex items-center gap-2 text-gray-400 uppercase tracking-widest">
-			LOUDNESS
-			<select bind:value={loudnessType} class="bg-gray-900 border border-gray-700 text-gray-100 px-2 py-1 uppercase">
-				<option value="momentary">MOMENTARY</option>
-				<option value="shortTerm">SHORT-TERM</option>
-			</select>
-		</label>
-		{#if results.data.length > 1}
-			<label class="flex items-center gap-2 text-gray-400 uppercase tracking-widest cursor-pointer select-none">
-				<input type="checkbox" bind:checked={normalizeToQuietest} class="accent-secondary-400" />
-				NORMALIZE TO QUIETEST
-			</label>
-			{#if normalizeToQuietest && quietestFile}
-				<span class="text-gray-400 uppercase tracking-widest font-bold">
-					({quietestFile.artist ? `${quietestFile.artist} — ` : ''}{quietestFile.name})
-				</span>
+			</div>
+		</div>
+
+		<!-- Right column: Loudness + Normalize -->
+		<div class="flex-1 min-w-0 flex flex-col gap-3">
+			<div>
+				<div class="text-gray-500 text-xs uppercase tracking-widest mb-1.5">Loudness</div>
+				<div class="border border-gray-700 flex flex-col">
+					<button
+						onclick={() => loudnessType = 'momentary'}
+						class="px-3 py-1.5 text-xs uppercase tracking-widest text-left transition-colors whitespace-nowrap
+							{loudnessType === 'momentary'
+								? 'bg-gray-800 text-gray-100'
+								: 'text-gray-500 hover:text-gray-300 hover:bg-gray-900'}"
+					>Momentary</button>
+					<button
+						onclick={() => loudnessType = 'shortTerm'}
+						class="px-3 py-1.5 text-xs uppercase tracking-widest text-left transition-colors border-t border-gray-700 whitespace-nowrap
+							{loudnessType === 'shortTerm'
+								? 'bg-gray-800 text-gray-100'
+								: 'text-gray-500 hover:text-gray-300 hover:bg-gray-900'}"
+					>Short-term</button>
+				</div>
+			</div>
+
+			{#if results.data.length > 1}
+				<div>
+					<div class="text-gray-500 text-xs uppercase tracking-widest mb-1.5">Normalize</div>
+					<div class="border border-gray-700 flex flex-col">
+						<button
+							onclick={() => normalizeToQuietest = false}
+							class="px-3 py-1.5 text-xs uppercase tracking-widest text-left transition-colors whitespace-nowrap
+								{!normalizeToQuietest
+									? 'bg-gray-800 text-gray-100'
+									: 'text-gray-500 hover:text-gray-300 hover:bg-gray-900'}"
+						>Off</button>
+						<button
+							onclick={() => normalizeToQuietest = true}
+							class="px-3 py-1.5 text-xs uppercase tracking-widest text-left transition-colors border-t border-gray-700 whitespace-nowrap
+								{normalizeToQuietest
+									? 'bg-gray-800 text-gray-100'
+									: 'text-gray-500 hover:text-gray-300 hover:bg-gray-900'}"
+						>To quietest</button>
+					</div>
+				</div>
 			{/if}
+		</div>
+	</div>
+
+	<!-- Desktop layout: sidebar + plots side by side -->
+	<div class="flex flex-1 min-h-0">
+	<!-- Left sidebar: hidden on mobile -->
+	<div class="hidden sm:flex shrink-0 border-r border-gray-700 p-3 flex-col gap-4 overflow-y-auto">
+
+		<!-- Band selector -->
+		<div>
+			<div class="text-gray-500 text-xs uppercase tracking-widest mb-1.5">Band</div>
+			<div class="border border-gray-700 flex flex-col">
+				{#each bands as band, i (band.label)}
+					<button
+						onclick={() => selectedBand = band.label}
+						class="px-3 py-1.5 text-xs uppercase tracking-widest text-left transition-colors whitespace-nowrap
+							{i > 0 ? 'border-t border-gray-700' : ''}
+							{selectedBand === band.label
+								? 'bg-gray-800 text-gray-100'
+								: 'text-gray-500 hover:text-gray-300 hover:bg-gray-900'}"
+					>{bandLabel(band.label)}</button>
+				{/each}
+			</div>
+		</div>
+
+		<!-- Loudness type selector -->
+		<div>
+			<div class="text-gray-500 text-xs uppercase tracking-widest mb-1.5">Loudness</div>
+			<div class="border border-gray-700 flex flex-col">
+				<button
+					onclick={() => loudnessType = 'momentary'}
+					class="px-3 py-1.5 text-xs uppercase tracking-widest text-left transition-colors whitespace-nowrap
+						{loudnessType === 'momentary'
+							? 'bg-gray-800 text-gray-100'
+							: 'text-gray-500 hover:text-gray-300 hover:bg-gray-900'}"
+				>Momentary</button>
+				<button
+					onclick={() => loudnessType = 'shortTerm'}
+					class="px-3 py-1.5 text-xs uppercase tracking-widest text-left transition-colors border-t border-gray-700 whitespace-nowrap
+						{loudnessType === 'shortTerm'
+							? 'bg-gray-800 text-gray-100'
+							: 'text-gray-500 hover:text-gray-300 hover:bg-gray-900'}"
+				>Short-term</button>
+			</div>
+		</div>
+
+		<!-- Normalize (only with multiple files) -->
+		{#if results.data.length > 1}
+			<div>
+				<div class="text-gray-500 text-xs uppercase tracking-widest mb-1.5">Normalize</div>
+				<div class="border border-gray-700 flex flex-col">
+					<button
+						onclick={() => normalizeToQuietest = false}
+						class="px-3 py-1.5 text-xs uppercase tracking-widest text-left transition-colors whitespace-nowrap
+							{!normalizeToQuietest
+								? 'bg-gray-800 text-gray-100'
+								: 'text-gray-500 hover:text-gray-300 hover:bg-gray-900'}"
+					>Off</button>
+					<button
+						onclick={() => normalizeToQuietest = true}
+						class="px-3 py-1.5 text-xs uppercase tracking-widest text-left transition-colors border-t border-gray-700 whitespace-nowrap
+							{normalizeToQuietest
+								? 'bg-gray-800 text-gray-100'
+								: 'text-gray-500 hover:text-gray-300 hover:bg-gray-900'}"
+					>To quietest</button>
+				</div>
+				{#if normalizeToQuietest && quietestFile}
+					<div class="text-gray-500 text-xs mt-1.5 max-w-[120px] leading-tight">
+						{quietestFile.artist ? `${quietestFile.artist} — ` : ''}{quietestFile.name}
+					</div>
+				{/if}
+			</div>
 		{/if}
 	</div>
 
-	<!-- Plots -->
-	<div class="flex-1 overflow-y-auto">
+	<!-- Plots area -->
+	<div class="flex-1 overflow-y-auto min-w-0">
 		{#if files.list.length === 0}
 			<div class="flex items-center justify-center h-full text-gray-500 text-xs uppercase tracking-widest">
-				NO FILES LOADED
+				No files loaded
 			</div>
 		{:else if results.data.length === 0}
 			<div class="flex items-center justify-center h-full text-gray-500 text-xs uppercase tracking-widest">
-				PRESS ANALYZE TO START
+				Press Analyze to start
 			</div>
 		{:else}
 			{#each files.list as audioFile (audioFile.id)}
@@ -84,4 +197,5 @@
 			{/each}
 		{/if}
 	</div>
+	</div><!-- end desktop flex row -->
 </section>

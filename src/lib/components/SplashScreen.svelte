@@ -1,10 +1,13 @@
-<script lang="ts">
-	import { onMount } from 'svelte';
+<script module lang="ts">
 	declare const __APP_VERSION__: string;
+</script>
+
+<script lang="ts">
+	import { onMount, untrack } from 'svelte';
 
 	let { manual = false, onclose }: { manual?: boolean; onclose?: () => void } = $props();
 
-	let entered = $state(!manual);
+	let entered = $state(untrack(() => !manual));
 	let gone = $state(false);
 
 	onMount(() => {

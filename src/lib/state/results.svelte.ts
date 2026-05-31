@@ -16,12 +16,18 @@ export type FileResult = {
 	bands: BandResult[];
 };
 
-export const results = $state<{ data: FileResult[] }>({ data: [] });
+export const results = $state<{ data: FileResult[]; isFresh: boolean }>({ data: [], isFresh: false });
 
 export function setResults(data: FileResult[]): void {
 	results.data = data;
+	results.isFresh = true;
 }
 
 export function clearResults(): void {
 	results.data = [];
+	results.isFresh = false;
+}
+
+export function markResultsStale(): void {
+	results.isFresh = false;
 }
