@@ -277,7 +277,7 @@
 <div class="border-b border-gray-700">
 	<div class="flex items-center gap-3 px-3 py-2 border-b border-gray-800">
 		<button
-			class="text-gray-400 hover:text-white transition-colors cursor-pointer"
+			class="text-gray-400 hover:text-white transition-colors cursor-pointer shrink-0"
 			onclick={() => {
 				if (isThisFileActive) {
 					togglePlayPause();
@@ -297,15 +297,16 @@
 			{/if}
 		</button>
 			{#if lufsOffset !== 0}
-				<span class="text-gray-400 text-xs font-mono">{lufsOffset > 0 ? '+' : ''}{lufsOffset.toFixed(1)} dB</span>
+				<span class="text-gray-400 text-xs font-mono shrink-0">{lufsOffset > 0 ? '+' : ''}{lufsOffset.toFixed(1)} dB</span>
 			{/if}
-			<span class="text-secondary-400 text-xs uppercase tracking-widest font-bold">
-			{audioFile.artist ? `${audioFile.artist} — ` : ''}{audioFile.name}
-		</span>
+			<span class="text-secondary-400 text-xs uppercase tracking-widest font-bold flex-1 min-w-0 truncate">{audioFile.name}</span>
+			{#if audioFile.artist}
+				<span class="text-gray-500 text-xs uppercase tracking-widest shrink-0">{audioFile.artist}</span>
+			{/if}
 		{#if integratedLufs !== undefined && isFinite(integratedLufs)}
-			<span class="text-gray-400 text-xs font-mono">LUFS-I: {integratedLufs.toFixed(1)}</span>
+			<span class="text-gray-400 text-xs font-mono shrink-0">LUFS-I: {integratedLufs.toFixed(1)}</span>
 		{/if}
-		<span class="text-gray-500 text-xs">{formatTime(audioFile.duration)}</span>
+		<span class="text-gray-500 text-xs shrink-0">{formatTime(audioFile.duration)}</span>
 	</div>
 
 	<div class="relative" bind:clientWidth={containerWidth}>

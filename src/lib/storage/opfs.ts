@@ -7,10 +7,14 @@ export type AudioFileMeta = {
 	id: string;
 	name: string;
 	artist: string;
+	album: string;
 	duration: number;
 	fileName: string;
 	mimeType: string;
 	sizeBytes: number;
+	codec: string;
+	bitrate: number | null;
+	sampleRate: number | null;
 };
 
 async function getMalmDir(): Promise<FileSystemDirectoryHandle> {

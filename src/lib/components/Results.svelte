@@ -171,7 +171,7 @@
 				</div>
 				{#if normalizeToQuietest && quietestFile}
 					<div class="text-gray-500 text-xs mt-1.5 max-w-[120px] leading-tight">
-						{quietestFile.artist ? `${quietestFile.artist} — ` : ''}{quietestFile.name}
+						{quietestFile.name}{quietestFile.artist ? ` — ${quietestFile.artist}` : ''}
 					</div>
 				{/if}
 			</div>

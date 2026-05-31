@@ -2,7 +2,7 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { untrack } from 'svelte';
-	import { files, setCurrentProjectId } from '$lib/state/files.svelte';
+	import { files, setCurrentProjectId, makeCoverUrl, sampleRateFromBuffer } from '$lib/state/files.svelte';
 	import { options, loadOptionsForProject, saveOptionsForProject, resetOptions } from '$lib/state/options.svelte';
 	import { results, setResults, clearResults, markResultsStale } from '$lib/state/results.svelte';
 	import { updateProjectMeta } from '$lib/state/project.svelte';
@@ -36,6 +36,9 @@
 
 		return () => {
 			setCurrentProjectId(null);
+			for (const f of files.list) {
+				if (f.coverUrl) URL.revokeObjectURL(f.coverUrl);
+			}
 			files.list = [];
 			clearResults();
 			resetOptions();
@@ -90,6 +93,7 @@
 				const loaded = await Promise.all(
 					audioFiles.map(async ({ meta, arrayBuffer }) => {
 						const buffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
+						const coverUrl = await makeCoverUrl(arrayBuffer, meta.mimeType || 'audio/mpeg');
 						return {
 							id: meta.id,
 							file: new File([arrayBuffer], meta.fileName, {
@@ -97,7 +101,12 @@
 							}),
 							name: meta.name,
 							artist: meta.artist,
+							album: meta.album ?? '',
 							duration: meta.duration,
+							codec: meta.codec ?? '',
+							bitrate: meta.bitrate ?? null,
+							sampleRate: meta.sampleRate ?? sampleRateFromBuffer(arrayBuffer, meta.mimeType, meta.fileName),
+							coverUrl,
 							buffer
 						};
 					})

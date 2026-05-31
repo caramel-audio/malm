@@ -59,6 +59,7 @@
 		"@domchristie/needles": "^0.0.2-1",
 		"@types/d3": "^7.4.3",
 		"better-sqlite3": "^12.10.0",
-		"d3": "^7.9.0"
+		"d3": "^7.9.0",
+		"music-metadata": "^11.12.3"
 	}
 }
