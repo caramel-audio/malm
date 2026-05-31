@@ -49,7 +49,7 @@ function filenameFallback(file: File): { name: string; artist: string } {
 	return { name: base, artist: '' };
 }
 
-async function extractMetadata(file: File): Promise<{
+export async function extractMetadata(file: File): Promise<{
 	name: string;
 	artist: string;
 	album: string;
@@ -78,20 +78,6 @@ async function extractMetadata(file: File): Promise<{
 	} catch {
 		const fallback = filenameFallback(file);
 		return { ...fallback, album: '', codec: '', bitrate: null, sampleRate: null, coverUrl: null };
-	}
-}
-
-export async function makeCoverUrl(
-	arrayBuffer: ArrayBuffer,
-	mimeType: string
-): Promise<string | null> {
-	try {
-		const blob = new Blob([arrayBuffer], { type: mimeType });
-		const meta = await parseBlob(blob, { duration: false, skipCovers: false });
-		const pic = selectCover(meta.common.picture ?? []);
-		return pic ? URL.createObjectURL(new Blob([pic.data.buffer.slice(pic.data.byteOffset, pic.data.byteOffset + pic.data.byteLength) as ArrayBuffer], { type: pic.format })) : null;
-	} catch {
-		return null;
 	}
 }
 

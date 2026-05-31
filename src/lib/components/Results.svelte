@@ -1,13 +1,17 @@
 <script lang="ts">
 	import { files } from '$lib/state/files.svelte';
 	import { results } from '$lib/state/results.svelte';
+	import { options } from '$lib/state/options.svelte';
 	import Plot from './Plot.svelte';
 
-	let selectedBand = $state('full');
-	let loudnessType = $state<'momentary' | 'shortTerm'>('momentary');
-	let normalizeToQuietest = $state(false);
-
 	const bands = $derived(results.data[0]?.bands ?? [{ label: 'full' }]);
+
+	// If the persisted band no longer exists in results, fall back to 'full'.
+	$effect(() => {
+		if (bands.length > 0 && !bands.some((b) => b.label === options.selectedBand)) {
+			options.selectedBand = 'full';
+		}
+	});
 
 	const fileIntegratedLufs = $derived(
 		results.data.map((r) => ({
@@ -28,7 +32,7 @@
 	);
 
 	function lufsOffset(fileId: string): number {
-		if (!normalizeToQuietest || !quietestEntry) return 0;
+		if (!options.normalizeToQuietest || !quietestEntry) return 0;
 		const entry = fileIntegratedLufs.find((e) => e.fileId === fileId);
 		if (!entry || !isFinite(entry.lufs) || !isFinite(quietestEntry.lufs)) return 0;
 		return quietestEntry.lufs - entry.lufs;
@@ -49,10 +53,10 @@
 			<div class="border border-gray-700 flex flex-col">
 				{#each bands as band, i (band.label)}
 					<button
-						onclick={() => selectedBand = band.label}
+						onclick={() => options.selectedBand = band.label}
 						class="px-3 py-1.5 text-xs uppercase tracking-widest text-left transition-colors whitespace-nowrap
 							{i > 0 ? 'border-t border-gray-700' : ''}
-							{selectedBand === band.label
+							{options.selectedBand === band.label
 								? 'bg-gray-800 text-gray-100'
 								: 'text-gray-500 hover:text-gray-300 hover:bg-gray-900'}"
 					>{bandLabel(band.label)}</button>
@@ -66,16 +70,16 @@
 				<div class="text-gray-500 text-xs uppercase tracking-widest mb-1.5">Loudness</div>
 				<div class="border border-gray-700 flex flex-col">
 					<button
-						onclick={() => loudnessType = 'momentary'}
+						onclick={() => options.loudnessType = 'momentary'}
 						class="px-3 py-1.5 text-xs uppercase tracking-widest text-left transition-colors whitespace-nowrap
-							{loudnessType === 'momentary'
+							{options.loudnessType === 'momentary'
 								? 'bg-gray-800 text-gray-100'
 								: 'text-gray-500 hover:text-gray-300 hover:bg-gray-900'}"
 					>Momentary</button>
 					<button
-						onclick={() => loudnessType = 'shortTerm'}
+						onclick={() => options.loudnessType = 'shortTerm'}
 						class="px-3 py-1.5 text-xs uppercase tracking-widest text-left transition-colors border-t border-gray-700 whitespace-nowrap
-							{loudnessType === 'shortTerm'
+							{options.loudnessType === 'shortTerm'
 								? 'bg-gray-800 text-gray-100'
 								: 'text-gray-500 hover:text-gray-300 hover:bg-gray-900'}"
 					>Short-term</button>
@@ -87,16 +91,16 @@
 					<div class="text-gray-500 text-xs uppercase tracking-widest mb-1.5">Normalize</div>
 					<div class="border border-gray-700 flex flex-col">
 						<button
-							onclick={() => normalizeToQuietest = false}
+							onclick={() => options.normalizeToQuietest = false}
 							class="px-3 py-1.5 text-xs uppercase tracking-widest text-left transition-colors whitespace-nowrap
-								{!normalizeToQuietest
+								{!options.normalizeToQuietest
 									? 'bg-gray-800 text-gray-100'
 									: 'text-gray-500 hover:text-gray-300 hover:bg-gray-900'}"
 						>Off</button>
 						<button
-							onclick={() => normalizeToQuietest = true}
+							onclick={() => options.normalizeToQuietest = true}
 							class="px-3 py-1.5 text-xs uppercase tracking-widest text-left transition-colors border-t border-gray-700 whitespace-nowrap
-								{normalizeToQuietest
+								{options.normalizeToQuietest
 									? 'bg-gray-800 text-gray-100'
 									: 'text-gray-500 hover:text-gray-300 hover:bg-gray-900'}"
 						>To quietest</button>
@@ -117,10 +121,10 @@
 			<div class="border border-gray-700 flex flex-col">
 				{#each bands as band, i (band.label)}
 					<button
-						onclick={() => selectedBand = band.label}
+						onclick={() => options.selectedBand = band.label}
 						class="px-3 py-1.5 text-xs uppercase tracking-widest text-left transition-colors whitespace-nowrap
 							{i > 0 ? 'border-t border-gray-700' : ''}
-							{selectedBand === band.label
+							{options.selectedBand === band.label
 								? 'bg-gray-800 text-gray-100'
 								: 'text-gray-500 hover:text-gray-300 hover:bg-gray-900'}"
 					>{bandLabel(band.label)}</button>
@@ -133,16 +137,16 @@
 			<div class="text-gray-500 text-xs uppercase tracking-widest mb-1.5">Loudness</div>
 			<div class="border border-gray-700 flex flex-col">
 				<button
-					onclick={() => loudnessType = 'momentary'}
+					onclick={() => options.loudnessType = 'momentary'}
 					class="px-3 py-1.5 text-xs uppercase tracking-widest text-left transition-colors whitespace-nowrap
-						{loudnessType === 'momentary'
+						{options.loudnessType === 'momentary'
 							? 'bg-gray-800 text-gray-100'
 							: 'text-gray-500 hover:text-gray-300 hover:bg-gray-900'}"
 				>Momentary</button>
 				<button
-					onclick={() => loudnessType = 'shortTerm'}
+					onclick={() => options.loudnessType = 'shortTerm'}
 					class="px-3 py-1.5 text-xs uppercase tracking-widest text-left transition-colors border-t border-gray-700 whitespace-nowrap
-						{loudnessType === 'shortTerm'
+						{options.loudnessType === 'shortTerm'
 							? 'bg-gray-800 text-gray-100'
 							: 'text-gray-500 hover:text-gray-300 hover:bg-gray-900'}"
 				>Short-term</button>
@@ -155,21 +159,21 @@
 				<div class="text-gray-500 text-xs uppercase tracking-widest mb-1.5">Normalize</div>
 				<div class="border border-gray-700 flex flex-col">
 					<button
-						onclick={() => normalizeToQuietest = false}
+						onclick={() => options.normalizeToQuietest = false}
 						class="px-3 py-1.5 text-xs uppercase tracking-widest text-left transition-colors whitespace-nowrap
-							{!normalizeToQuietest
+							{!options.normalizeToQuietest
 								? 'bg-gray-800 text-gray-100'
 								: 'text-gray-500 hover:text-gray-300 hover:bg-gray-900'}"
 					>Off</button>
 					<button
-						onclick={() => normalizeToQuietest = true}
+						onclick={() => options.normalizeToQuietest = true}
 						class="px-3 py-1.5 text-xs uppercase tracking-widest text-left transition-colors border-t border-gray-700 whitespace-nowrap
-							{normalizeToQuietest
+							{options.normalizeToQuietest
 								? 'bg-gray-800 text-gray-100'
 								: 'text-gray-500 hover:text-gray-300 hover:bg-gray-900'}"
 					>To quietest</button>
 				</div>
-				{#if normalizeToQuietest && quietestFile}
+				{#if options.normalizeToQuietest && quietestFile}
 					<div class="text-gray-500 text-xs mt-1.5 max-w-[120px] leading-tight">
 						{quietestFile.name}{quietestFile.artist ? ` — ${quietestFile.artist}` : ''}
 					</div>
@@ -192,7 +196,7 @@
 			{#each files.list as audioFile (audioFile.id)}
 				{@const result = results.data.find((r) => r.fileId === audioFile.id)}
 				{#if result}
-					<Plot {audioFile} {result} {selectedBand} {loudnessType} lufsOffset={lufsOffset(audioFile.id)} />
+					<Plot {audioFile} {result} selectedBand={options.selectedBand} loudnessType={options.loudnessType} lufsOffset={lufsOffset(audioFile.id)} />
 				{/if}
 			{/each}
 		{/if}

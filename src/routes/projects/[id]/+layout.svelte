@@ -2,7 +2,7 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { untrack } from 'svelte';
-	import { files, setCurrentProjectId, makeCoverUrl, sampleRateFromBuffer } from '$lib/state/files.svelte';
+	import { files, setCurrentProjectId, extractMetadata, sampleRateFromBuffer } from '$lib/state/files.svelte';
 	import { options, loadOptionsForProject, saveOptionsForProject, resetOptions } from '$lib/state/options.svelte';
 	import { results, setResults, clearResults, markResultsStale } from '$lib/state/results.svelte';
 	import { updateProjectMeta } from '$lib/state/project.svelte';
@@ -49,7 +49,11 @@
 
 	// Auto-save options (debounced, only once project is loaded).
 	$effect(() => {
-		const freqs = [...options.frequencies]; // reactive dependency
+		// reactive dependencies: frequencies + view settings
+		const _freqs = [...options.frequencies];
+		const _band = options.selectedBand;
+		const _loudness = options.loudnessType;
+		const _normalize = options.normalizeToQuietest;
 		const id = projectId;
 		if (!isLoaded) return;
 		clearTimeout(optionsSaveTimer);
@@ -92,21 +96,22 @@
 				const ctx = new AudioContext();
 				const loaded = await Promise.all(
 					audioFiles.map(async ({ meta, arrayBuffer }) => {
-						const buffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
-						const coverUrl = await makeCoverUrl(arrayBuffer, meta.mimeType || 'audio/mpeg');
+						const file = new File([arrayBuffer], meta.fileName, { type: meta.mimeType || 'audio/mpeg' });
+						const [buffer, tags] = await Promise.all([
+							ctx.decodeAudioData(arrayBuffer.slice(0)),
+							extractMetadata(file)
+						]);
 						return {
 							id: meta.id,
-							file: new File([arrayBuffer], meta.fileName, {
-								type: meta.mimeType || 'audio/mpeg'
-							}),
-							name: meta.name,
-							artist: meta.artist,
-							album: meta.album ?? '',
-							duration: meta.duration,
-							codec: meta.codec ?? '',
-							bitrate: meta.bitrate ?? null,
-							sampleRate: meta.sampleRate ?? sampleRateFromBuffer(arrayBuffer, meta.mimeType, meta.fileName),
-							coverUrl,
+							file,
+							name: tags.name,
+							artist: tags.artist,
+							album: tags.album,
+							duration: buffer.duration,
+							codec: tags.codec,
+							bitrate: tags.bitrate,
+							sampleRate: tags.sampleRate ?? sampleRateFromBuffer(arrayBuffer, meta.mimeType, meta.fileName),
+							coverUrl: tags.coverUrl,
 							buffer
 						};
 					})
