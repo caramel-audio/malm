@@ -1,2 +1,0 @@
-- change "ANALYSING..." to "MALMING..." in setup page
-- give the dots "..." some simple fast animation while it works

@@ -80,7 +80,11 @@
 					onclick={handleAnalyze}
 					class="w-full py-2.5 text-xs uppercase tracking-widest bg-secondary-400 text-gray-950 font-bold hover:bg-secondary-300 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
 				>
-					{options.isAnalyzing ? 'Analysing…' : 'Analyze'}
+					{#if options.isAnalyzing}
+						MALMING<span class="dots"><span>.</span><span>.</span><span>.</span></span>
+					{:else}
+						Analyze
+					{/if}
 				</button>
 			</div>
 
@@ -93,3 +97,16 @@
 		</div>
 	</div>
 </div>
+
+<style>
+	.dots span {
+		animation: blink 1s step-start infinite;
+	}
+	.dots span:nth-child(2) { animation-delay: 0.2s; }
+	.dots span:nth-child(3) { animation-delay: 0.4s; }
+
+	@keyframes blink {
+		0%, 100% { opacity: 1; }
+		50% { opacity: 0; }
+	}
+</style>
