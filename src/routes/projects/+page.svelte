@@ -111,7 +111,7 @@
 						<!-- Normal mode: clickable card body -->
 						<button
 							class="w-full text-left p-4 flex flex-col gap-2 pr-16"
-							onclick={() => goto(`/projects/${p.id}/setup`)}
+							onclick={() => goto(`/projects/${p.id}`)}
 						>
 							<span class="font-bold text-sm text-gray-100 truncate">{p.name}</span>
 							<div class="flex items-center gap-3 text-xs text-gray-500 flex-wrap">

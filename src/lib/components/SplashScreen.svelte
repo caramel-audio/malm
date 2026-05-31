@@ -30,19 +30,23 @@
 			<div class="space-y-6 mb-10">
 				<section>
 					<h2 class="font-mono text-xs uppercase tracking-widest text-gray-400 mb-2">What is MALM?</h2>
-					<p class="text-sm text-gray-500 leading-relaxed">Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
+					<p class="text-sm text-gray-500 leading-relaxed">Multi Audio Loudness Measurement (MALM) is a browser tool for analyzing audio file loudness. It is intended for audio professionals and musicians to assist in the mastering workflow by comparing your work to other works. You can measure the LUFS of a file, but also split the file into frequency bands, and measure as well as listen to the bands.<br>More features might be added later.</p>
 				</section>
 				<section>
 					<h2 class="font-mono text-xs uppercase tracking-widest text-gray-400 mb-2">How does it work?</h2>
-					<p class="text-sm text-gray-500 leading-relaxed">Lorem ipsum dolor sit amet, consectetur adipiscing elit. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris.</p>
+					<p class="text-sm text-gray-500 leading-relaxed">All processing happens right in your browser: Metadata extraction, loudness measurement, band filtering is all done in Javascript.</p>
 				</section>
 				<section>
 					<h2 class="font-mono text-xs uppercase tracking-widest text-gray-400 mb-2">What happens to my data?</h2>
-					<p class="text-sm text-gray-500 leading-relaxed">Lorem ipsum dolor sit amet, consectetur adipiscing elit. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore.</p>
+					<p class="text-sm text-gray-500 leading-relaxed">Nothing. Everything is processed and stored locally on your machine. MALM uses the OPFS system to store your projects in your computer's file system.</p>
 				</section>
 				<section>
 					<h2 class="font-mono text-xs uppercase tracking-widest text-gray-400 mb-2">Who created this?</h2>
-					<p class="text-sm text-gray-500 leading-relaxed">Lorem ipsum dolor sit amet, consectetur adipiscing elit. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia.</p>
+					<p class="text-sm text-gray-500 leading-relaxed">MALM is a side project of the <a href="https://caramel.audio" target="_blank" rel="noopener noreferrer" class="hover:text-white underline underline-offset-2">Caramel Audio</a> team. Our main project is to build a live audio processing machine that gives endless possibilites to audio professionals, musicians, and the like.</p>
+				</section>
+				<section>
+					<h2 class="font-mono text-xs uppercase tracking-widest text-gray-400 mb-2">Open Source</h2>
+					<p class="text-sm text-gray-500 leading-relaxed">MALM is completely free and open source under the MIT license. You can look at the source code and contribute on the <a href="https://github.com/caramel-audio/malm" target="_blank" rel="noopener noreferrer" class="hover:text-white underline underline-offset-2">GitHub repository</a>.<br> Found a bug or want a feature? <a href="https://github.com/caramel-audio/malm/issues" target="_blank" rel="noopener noreferrer" class="hover:text-white underline underline-offset-2">Create an issue</a>.</p>
 				</section>
 			</div>
 

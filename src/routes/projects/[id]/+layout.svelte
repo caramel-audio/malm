@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { goto } from '$app/navigation';
 	import { untrack } from 'svelte';
 	import { files, setCurrentProjectId, extractMetadata, sampleRateFromBuffer } from '$lib/state/files.svelte';
 	import { options, loadOptionsForProject, saveOptionsForProject, resetOptions } from '$lib/state/options.svelte';
@@ -121,10 +120,7 @@
 			}
 
 			const savedResults = await loadResults(id);
-			if (savedResults) {
-				setResults(savedResults);
-				goto(`/projects/${id}/analysis`, { replaceState: true });
-			}
+			if (savedResults) setResults(savedResults);
 
 			isLoaded = true;
 		} catch (e) {
