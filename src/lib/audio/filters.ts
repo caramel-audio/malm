@@ -1,16 +1,11 @@
-// Butterworth bandpass/highpass/lowpass filters for splitting audio into energy bands
-// Filter order: 24 dB/oct (4th order Butterworth)
-
-// TODO: buildFilterChain(ctx: OfflineAudioContext, source: AudioBufferSourceNode, bands: FreqBand[])
-//       Returns one OfflineAudioContext render per band
-
 export type FreqBand = {
 	label: string;
 	lowHz: number | null;  // null = no low cut (starts at 0)
 	highHz: number | null; // null = no high cut (extends to Nyquist)
 };
 
-// Derive bands from a sorted list of crossover frequencies, plus a "full" band
+export type BiquadCoeffs = { b0: number; b1: number; b2: number; a1: number; a2: number };
+
 export function buildBands(frequencies: number[]): FreqBand[] {
 	const sorted = [...frequencies].sort((a, b) => a - b);
 	const bands: FreqBand[] = [];
@@ -31,54 +26,31 @@ export function buildBands(frequencies: number[]): FreqBand[] {
 	return bands;
 }
 
-// Apply a single band's filter chain to an AudioBuffer and return the filtered AudioBuffer
-// 24 dB/oct achieved by cascading 2× biquad filters of the same type at the same frequency
-export async function renderBand(source: AudioBuffer, band: FreqBand): Promise<AudioBuffer> {
-	if (band.lowHz === null && band.highHz === null) {
-		return source;
-	}
+function hpCoeffs(fc: number, fs: number): BiquadCoeffs {
+	const Q = Math.SQRT1_2;
+	const K = Math.tan(Math.PI * fc / fs);
+	const norm = 1 / (1 + K / Q + K * K);
+	return { b0: norm, b1: -2 * norm, b2: norm, a1: 2 * (K * K - 1) * norm, a2: (1 - K / Q + K * K) * norm };
+}
 
-	const ctx = new OfflineAudioContext(
-		source.numberOfChannels,
-		source.length,
-		source.sampleRate,
-	);
+function lpCoeffs(fc: number, fs: number): BiquadCoeffs {
+	const Q = Math.SQRT1_2;
+	const K = Math.tan(Math.PI * fc / fs);
+	const norm = 1 / (1 + K / Q + K * K);
+	return { b0: K * K * norm, b1: 2 * K * K * norm, b2: K * K * norm, a1: 2 * (K * K - 1) * norm, a2: (1 - K / Q + K * K) * norm };
+}
 
-	const src = ctx.createBufferSource();
-	src.buffer = source;
-
-	let node: AudioNode = src;
-
+// Returns LR4 filter stages for a band (2 cascaded biquads per cutoff).
+// Empty array for the "full" band (no filtering).
+export function buildBandCoeffs(band: FreqBand, sampleRate: number): BiquadCoeffs[] {
+	const stages: BiquadCoeffs[] = [];
 	if (band.lowHz !== null) {
-		const hp1 = ctx.createBiquadFilter();
-		hp1.type = 'highpass';
-		hp1.frequency.value = band.lowHz;
-		hp1.Q.value = Math.SQRT1_2; // LR4 crossover: two cascaded Butterworth stages
-		const hp2 = ctx.createBiquadFilter();
-		hp2.type = 'highpass';
-		hp2.frequency.value = band.lowHz;
-		hp2.Q.value = Math.SQRT1_2;
-		node.connect(hp1);
-		hp1.connect(hp2);
-		node = hp2;
+		const c = hpCoeffs(band.lowHz, sampleRate);
+		stages.push(c, c);
 	}
-
 	if (band.highHz !== null) {
-		const lp1 = ctx.createBiquadFilter();
-		lp1.type = 'lowpass';
-		lp1.frequency.value = band.highHz;
-		lp1.Q.value = Math.SQRT1_2;
-		const lp2 = ctx.createBiquadFilter();
-		lp2.type = 'lowpass';
-		lp2.frequency.value = band.highHz;
-		lp2.Q.value = Math.SQRT1_2;
-		node.connect(lp1);
-		lp1.connect(lp2);
-		node = lp2;
+		const c = lpCoeffs(band.highHz, sampleRate);
+		stages.push(c, c);
 	}
-
-	node.connect(ctx.destination);
-	src.start(0);
-
-	return ctx.startRendering();
+	return stages;
 }
