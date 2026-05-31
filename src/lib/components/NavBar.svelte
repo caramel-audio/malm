@@ -2,7 +2,7 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { projects } from '$lib/state/project.svelte';
-	import SplashScreen from './SplashScreen.svelte';
+	import InfoModal from './InfoModal.svelte';
 
 	let showInfo = $state(false);
 	let showProjectDropdown = $state(false);
@@ -155,5 +155,5 @@
 </nav>
 
 {#if showInfo}
-	<SplashScreen onclose={() => (showInfo = false)} />
+	<InfoModal onclose={() => (showInfo = false)} />
 {/if}
