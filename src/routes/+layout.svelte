@@ -21,6 +21,6 @@
 	<InfoModal onclose={handleClose} />
 {/if}
 
-<div class="min-h-screen bg-gray-950 text-gray-100 font-mono text-[13px]">
+<div class="min-h-screen bg-gray-950 font-mono text-[13px] text-gray-100">
 	{@render children()}
 </div>

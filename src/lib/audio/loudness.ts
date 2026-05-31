@@ -7,26 +7,32 @@ import { type FreqBand, type BiquadCoeffs, buildBandCoeffs } from './filters';
 // K-weighting filter coefficients (pre-filter + RLB weighting per EBU R128)
 function kWeightingCoeffs(fs: number): BiquadCoeffs[] {
 	// Pre-filter: high-shelf via bilinear transform
-	const db = 3.999843853973347, f0 = 1681.974450955533, Qpre = 0.7071752369554196;
-	const K = Math.tan(Math.PI * f0 / fs);
-	const Vh = Math.pow(10, db / 20), Vb = Math.pow(Vh, 0.4996667741545416);
+	const db = 3.999843853973347,
+		f0 = 1681.974450955533,
+		Qpre = 0.7071752369554196;
+	const K = Math.tan((Math.PI * f0) / fs);
+	const Vh = Math.pow(10, db / 20),
+		Vb = Math.pow(Vh, 0.4996667741545416);
 	const d0 = 1 + K / Qpre + K * K;
 	const pre: BiquadCoeffs = {
-		b0: (Vh + Vb * K / Qpre + K * K) / d0,
-		b1: 2 * (K * K - Vh) / d0,
-		b2: (Vh - Vb * K / Qpre + K * K) / d0,
-		a1: 2 * (K * K - 1) / d0,
-		a2: (1 - K / Qpre + K * K) / d0,
+		b0: (Vh + (Vb * K) / Qpre + K * K) / d0,
+		b1: (2 * (K * K - Vh)) / d0,
+		b2: (Vh - (Vb * K) / Qpre + K * K) / d0,
+		a1: (2 * (K * K - 1)) / d0,
+		a2: (1 - K / Qpre + K * K) / d0
 	};
 
 	// Weighting filter: highpass
-	const f1 = 38.13547087602444, Qw = 0.5003270373238773;
-	const Kw = Math.tan(Math.PI * f1 / fs);
+	const f1 = 38.13547087602444,
+		Qw = 0.5003270373238773;
+	const Kw = Math.tan((Math.PI * f1) / fs);
 	const dw = 1 + Kw / Qw + Kw * Kw;
 	const weight: BiquadCoeffs = {
-		b0: 1 / dw, b1: -2 / dw, b2: 1 / dw,
-		a1: 2 * (Kw * Kw - 1) / dw,
-		a2: (1 - Kw / Qw + Kw * Kw) / dw,
+		b0: 1 / dw,
+		b1: -2 / dw,
+		b2: 1 / dw,
+		a1: (2 * (Kw * Kw - 1)) / dw,
+		a2: (1 - Kw / Qw + Kw * Kw) / dw
 	};
 
 	return [pre, weight];
@@ -42,6 +48,10 @@ function processSample(x: number, c: BiquadCoeffs, s: Float64Array): number {
 
 // Channel weights per EBU R128 (L, R, C, Ls, Rs)
 const CHANNEL_GAINS = [1, 1, 1, 1.41, 1.41];
+
+function toDb(meanSquare: number): number {
+	return -0.691 + 10 * Math.log10(Math.max(meanSquare, 1e-10));
+}
 
 // EBU R128 gating: absolute gate at -70 LUFS, relative gate 10 dB below ungated mean
 function integratedLufs(chunkSS: Float64Array[], stepSamples: number): number {
@@ -72,10 +82,13 @@ function integratedLufs(chunkSS: Float64Array[], stepSamples: number): number {
 	const gated2 = gated1.filter((ms) => ms >= relThreshold);
 	if (gated2.length === 0) return -Infinity;
 
-	return -0.691 + 10 * Math.log10(gated2.reduce((a, b) => a + b, 0) / gated2.length);
+	return toDb(gated2.reduce((a, b) => a + b, 0) / gated2.length);
 }
 
-export async function measureLoudness(buffer: AudioBuffer, band: FreqBand): Promise<Omit<BandResult, 'label'>> {
+export async function measureLoudness(
+	buffer: AudioBuffer,
+	band: FreqBand
+): Promise<Omit<BandResult, 'label'>> {
 	const sr = buffer.sampleRate;
 	const stepSamples = Math.round(0.1 * sr); // 100 ms chunks
 	const totalSteps = Math.floor(buffer.length / stepSamples);
@@ -125,7 +138,8 @@ export async function measureLoudness(buffer: AudioBuffer, band: FreqBand): Prom
 	}
 
 	// Sliding-window momentary (400 ms) and short-term (3 s) LUFS
-	const momentaryChunks = 4, shortTermChunks = 30;
+	const momentaryChunks = 4,
+		shortTermChunks = 30;
 	const mRunning = new Float64Array(nCh);
 	const stRunning = new Float64Array(nCh);
 	const momentary: [number, number][] = [];
@@ -141,15 +155,16 @@ export async function measureLoudness(buffer: AudioBuffer, band: FreqBand): Prom
 
 		const mChunks = Math.min(step + 1, momentaryChunks);
 		const stChunks = Math.min(step + 1, shortTermChunks);
-		let mSum = 0, stSum = 0;
+		let mSum = 0,
+			stSum = 0;
 		for (let ch = 0; ch < nCh; ch++) {
 			const gain = CHANNEL_GAINS[ch] ?? 1;
 			mSum += gain * (mRunning[ch] / (mChunks * stepSamples));
 			stSum += gain * (stRunning[ch] / (stChunks * stepSamples));
 		}
 
-		momentary.push([step * 100, -0.691 + 10 * Math.log10(Math.max(mSum, 1e-10))]);
-		shortTerm.push([step * 100, -0.691 + 10 * Math.log10(Math.max(stSum, 1e-10))]);
+		momentary.push([step * 100, toDb(mSum)]);
+		shortTerm.push([step * 100, toDb(stSum)]);
 	}
 
 	const integrated = integratedLufs(chunkSS, stepSamples);

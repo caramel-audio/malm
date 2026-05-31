@@ -7,7 +7,7 @@ export async function analyzeFiles(
 	files: AudioFile[],
 	frequencies: number[],
 	onProgress: (progress: number) => void,
-	signal?: AbortSignal,
+	signal?: AbortSignal
 ): Promise<FileResult[]> {
 	const bands = buildBands(frequencies);
 	const total = files.length * bands.length;

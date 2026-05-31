@@ -10,9 +10,9 @@
 	});
 </script>
 
-<div class="flex flex-col h-screen overflow-hidden">
+<div class="flex h-screen flex-col overflow-hidden">
 	<NavBar />
-	<div class="flex-1 min-h-0 overflow-hidden">
+	<div class="min-h-0 flex-1 overflow-hidden">
 		{@render children()}
 	</div>
 </div>

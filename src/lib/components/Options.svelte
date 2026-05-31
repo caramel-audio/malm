@@ -114,25 +114,28 @@
 	}
 </script>
 
-<section class="h-full flex flex-col">
-	<div class="px-3 py-2 border-b border-gray-700 text-secondary-400 uppercase tracking-widest text-xs flex items-center justify-between">
+<section class="flex h-full flex-col">
+	<div
+		class="flex items-center justify-between border-b border-gray-700 px-3 py-2 text-xs tracking-widest text-secondary-400 uppercase"
+	>
 		<span>OPTIONS</span>
 		<button
 			onclick={resetOptions}
-			class="text-gray-600 hover:text-gray-300 text-xs uppercase tracking-widest transition-colors"
-		>Reset</button>
+			class="text-xs tracking-widest text-gray-600 uppercase transition-colors hover:text-gray-300"
+			>Reset</button
+		>
 	</div>
 
-	<div class="flex-1 overflow-y-auto px-3 py-4 flex flex-col gap-2">
+	<div class="flex flex-1 flex-col gap-2 overflow-y-auto px-3 py-4">
 		<div class="flex items-center justify-between">
-			<div class="text-gray-400 text-xs uppercase tracking-widest">Crossovers</div>
-			<div class="text-gray-600 text-xs">Click bar to add · drag to move</div>
+			<div class="text-xs tracking-widest text-gray-400 uppercase">Crossovers</div>
+			<div class="text-xs text-gray-600">Click bar to add · drag to move</div>
 		</div>
 
 		<div class="flex items-center gap-2 select-none">
-			<span class="text-gray-600 text-xs tabular-nums">20</span>
+			<span class="text-xs text-gray-600 tabular-nums">20</span>
 			<!-- Spectrum area: pills above (y=0..24), bar (y=40..56), pills below (y=64..88) -->
-			<div class="relative flex-1 h-24">
+			<div class="relative h-24 flex-1">
 				<!-- Bar -->
 				<div
 					bind:this={barEl}
@@ -143,20 +146,24 @@
 					aria-valuemin={MIN_HZ}
 					aria-valuemax={MAX_HZ}
 					aria-valuenow={options.frequencies[0] ?? MIN_HZ}
-					class="absolute left-0 right-0 top-10 h-4 bg-gray-800 border border-gray-700 cursor-crosshair"
+					class="absolute top-10 right-0 left-0 h-4 cursor-crosshair border border-gray-700 bg-gray-800"
 				>
 					<!-- Band fills -->
 					{#each bandRanges as range, i (i)}
 						{@const leftPct = hzToPct(range.start)}
 						{@const widthPct = hzToPct(range.end) - leftPct}
 						<div
-							class="absolute top-0 bottom-0 {i % 2 === 0 ? 'bg-gray-800' : 'bg-gray-700/60'} pointer-events-none"
+							class="absolute top-0 bottom-0 {i % 2 === 0
+								? 'bg-gray-800'
+								: 'bg-gray-700/60'} pointer-events-none"
 							style="left: {leftPct}%; width: {widthPct}%;"
 						></div>
 					{/each}
 
 					{#if options.frequencies.length === 0}
-						<div class="absolute inset-0 flex items-center justify-center text-[10px] text-gray-500 italic pointer-events-none">
+						<div
+							class="pointer-events-none absolute inset-0 flex items-center justify-center text-[10px] text-gray-500 italic"
+						>
 							Click anywhere to add a split
 						</div>
 					{/if}
@@ -168,8 +175,12 @@
 					{@const active = dragIndex === i || hoverIndex === i}
 					{@const hasError = editError !== null && editError.index === i}
 					<div
-						class="handle absolute top-0 bottom-0 -translate-x-1/2 flex flex-col items-center"
-						style="left: {hzToPct(hz)}%; z-index: {dragIndex === i ? 30 : hoverIndex === i ? 20 : 10};"
+						class="handle absolute top-0 bottom-0 flex -translate-x-1/2 flex-col items-center"
+						style="left: {hzToPct(hz)}%; z-index: {dragIndex === i
+							? 30
+							: hoverIndex === i
+								? 20
+								: 10};"
 						onpointerenter={() => (hoverIndex = i)}
 						onpointerleave={() => {
 							if (hoverIndex === i) hoverIndex = null;
@@ -178,7 +189,9 @@
 					>
 						<!-- Vertical line through bar -->
 						<div
-							class="absolute top-8 h-8 w-px pointer-events-none {active ? 'bg-secondary-400' : 'bg-secondary-400/70'}"
+							class="pointer-events-none absolute top-8 h-8 w-px {active
+								? 'bg-secondary-400'
+								: 'bg-secondary-400/70'}"
 						></div>
 						<!-- Wide invisible drag hit area covering the bar slice -->
 						<div
@@ -188,7 +201,11 @@
 						></div>
 						<!-- Pill (above or below the bar) -->
 						<div
-							class="absolute h-6 flex items-center gap-1 px-1 bg-gray-900 border cursor-grab active:cursor-grabbing {hasError ? 'border-danger-400 text-danger-400' : active ? 'border-secondary-400 text-secondary-400' : 'border-secondary-400/60 text-secondary-400'}"
+							class="absolute flex h-6 cursor-grab items-center gap-1 border bg-gray-900 px-1 active:cursor-grabbing {hasError
+								? 'border-danger-400 text-danger-400'
+								: active
+									? 'border-secondary-400 text-secondary-400'
+									: 'border-secondary-400/60 text-secondary-400'}"
 							style="top: {above ? '4px' : '60px'};"
 							onpointerdown={(e) => onHandlePointerDown(e, i)}
 							role="presentation"
@@ -202,20 +219,20 @@
 								onchange={(e) => onInputCommit(i, (e.currentTarget as HTMLInputElement).value)}
 								onkeydown={(e) => onInputKey(e, i)}
 								onpointerdown={(e) => e.stopPropagation()}
-								class="w-10 bg-transparent text-[11px] text-gray-100 tabular-nums focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-right"
+								class="w-10 [appearance:textfield] bg-transparent text-right text-[11px] text-gray-100 tabular-nums focus:outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
 								aria-label="Crossover frequency in Hz"
 							/>
 							<button
-								class="text-gray-500 hover:text-secondary-400 text-[11px] leading-none"
+								class="text-[11px] leading-none text-gray-500 hover:text-secondary-400"
 								onclick={() => removeFrequency(options.frequencies[i])}
 								onpointerdown={(e) => e.stopPropagation()}
-								aria-label="Remove {hz} Hz"
-							>✕</button>
+								aria-label="Remove {hz} Hz">✕</button
+							>
 						</div>
 					</div>
 				{/each}
 			</div>
-			<span class="text-gray-600 text-xs tabular-nums">20k</span>
+			<span class="text-xs text-gray-600 tabular-nums">20k</span>
 		</div>
 	</div>
 </section>

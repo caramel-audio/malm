@@ -4,8 +4,6 @@ const DEFAULT_FREQUENCIES = [200, 2000];
 
 export const options = $state({
 	frequencies: [...DEFAULT_FREQUENCIES],
-	isAnalyzing: false,
-	progress: 0,
 	selectedBand: 'full',
 	loudnessType: 'momentary' as 'momentary' | 'shortTerm',
 	normalizeToQuietest: false
@@ -24,8 +22,6 @@ export function removeFrequency(hz: number): void {
 
 export function resetOptions(): void {
 	options.frequencies = [...DEFAULT_FREQUENCIES];
-	options.isAnalyzing = false;
-	options.progress = 0;
 	options.selectedBand = 'full';
 	options.loudnessType = 'momentary';
 	options.normalizeToQuietest = false;
@@ -34,25 +30,23 @@ export function resetOptions(): void {
 // Per-project persistence helpers (called by the project layout).
 
 export function loadOptionsForProject(projectId: string): void {
+	resetOptions();
 	try {
 		const raw = localStorage.getItem(`malm_project_${projectId}_options`);
-		if (raw) {
-			const parsed = JSON.parse(raw);
-			if (Array.isArray(parsed.frequencies) && parsed.frequencies.every((x: unknown) => Number.isFinite(x) && (x as number) > 0)) {
-				options.frequencies = parsed.frequencies;
-			} else {
-				options.frequencies = [...DEFAULT_FREQUENCIES];
-			}
-			if (typeof parsed.selectedBand === 'string') options.selectedBand = parsed.selectedBand;
-			if (parsed.loudnessType === 'momentary' || parsed.loudnessType === 'shortTerm') options.loudnessType = parsed.loudnessType;
-			if (typeof parsed.normalizeToQuietest === 'boolean') options.normalizeToQuietest = parsed.normalizeToQuietest;
-			return;
+		if (!raw) return;
+		const parsed = JSON.parse(raw);
+		if (
+			Array.isArray(parsed.frequencies) &&
+			parsed.frequencies.every((x: unknown) => Number.isFinite(x) && (x as number) > 0)
+		) {
+			options.frequencies = parsed.frequencies;
 		}
+		if (typeof parsed.selectedBand === 'string') options.selectedBand = parsed.selectedBand;
+		if (parsed.loudnessType === 'momentary' || parsed.loudnessType === 'shortTerm')
+			options.loudnessType = parsed.loudnessType;
+		if (typeof parsed.normalizeToQuietest === 'boolean')
+			options.normalizeToQuietest = parsed.normalizeToQuietest;
 	} catch {}
-	options.frequencies = [...DEFAULT_FREQUENCIES];
-	options.selectedBand = 'full';
-	options.loudnessType = 'momentary';
-	options.normalizeToQuietest = false;
 }
 
 export function saveOptionsForProject(projectId: string): void {

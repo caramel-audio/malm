@@ -82,10 +82,13 @@
 	--text-3xs--line-height: 0.625rem;
 }
 
-*, *::before, *::after {
+*,
+*::before,
+*::after {
 	border-radius: 0 !important;
 }
 
-html, body {
+html,
+body {
 	height: 100%;
 }

@@ -33,7 +33,11 @@ function flacSampleRate(buf: ArrayBuffer): number | null {
 	return sr > 0 ? sr : null;
 }
 
-export function sampleRateFromBuffer(buf: ArrayBuffer, mimeType: string, fileName: string): number | null {
+export function sampleRateFromBuffer(
+	buf: ArrayBuffer,
+	mimeType: string,
+	fileName: string
+): number | null {
 	const m = mimeType.toLowerCase();
 	const ext = fileName.split('.').pop()?.toLowerCase() ?? '';
 	if (m.includes('flac') || ext === 'flac') return flacSampleRate(buf);
@@ -72,7 +76,19 @@ export async function extractMetadata(file: File): Promise<{
 		const sampleRate = f.sampleRate ?? null;
 
 		const pic = selectCover(t.picture ?? []);
-		const coverUrl = pic ? URL.createObjectURL(new Blob([pic.data.buffer.slice(pic.data.byteOffset, pic.data.byteOffset + pic.data.byteLength) as ArrayBuffer], { type: pic.format })) : null;
+		const coverUrl = pic
+			? URL.createObjectURL(
+					new Blob(
+						[
+							pic.data.buffer.slice(
+								pic.data.byteOffset,
+								pic.data.byteOffset + pic.data.byteLength
+							) as ArrayBuffer
+						],
+						{ type: pic.format }
+					)
+				)
+			: null;
 
 		return { name, artist, album, codec, bitrate, sampleRate, coverUrl };
 	} catch {
@@ -166,6 +182,9 @@ export function reorderFiles(from: number, to: number): void {
 	files.list.splice(to, 0, item);
 
 	if (currentProjectId) {
-		reorderAudioFiles(currentProjectId, files.list.map((f) => f.id));
+		reorderAudioFiles(
+			currentProjectId,
+			files.list.map((f) => f.id)
+		);
 	}
 }

@@ -4,7 +4,7 @@ export const playback = $state({
 	currentFileId: null as string | null,
 	currentTime: 0,
 	isPlaying: false,
-	isPaused: false,
+	isPaused: false
 });
 
 let ctx: AudioContext | null = null;
@@ -14,6 +14,25 @@ let startContextTime = 0;
 let startOffset = 0;
 let rafId: number | null = null;
 
+function addFilterPair(
+	ctx: AudioContext,
+	type: BiquadFilterType,
+	hz: number,
+	prev: AudioNode
+): AudioNode {
+	const f1 = ctx.createBiquadFilter();
+	f1.type = type;
+	f1.frequency.value = hz;
+	f1.Q.value = Math.SQRT1_2;
+	const f2 = ctx.createBiquadFilter();
+	f2.type = type;
+	f2.frequency.value = hz;
+	f2.Q.value = Math.SQRT1_2;
+	prev.connect(f1);
+	f1.connect(f2);
+	return f2;
+}
+
 function tick() {
 	if (ctx && playback.isPlaying) {
 		playback.currentTime = startOffset + (ctx.currentTime - startContextTime);
@@ -21,7 +40,13 @@ function tick() {
 	}
 }
 
-export function play(fileId: string, buffer: AudioBuffer, band: FreqBand | null, offsetSeconds: number, gainDb = 0): void {
+export function play(
+	fileId: string,
+	buffer: AudioBuffer,
+	band: FreqBand | null,
+	offsetSeconds: number,
+	gainDb = 0
+): void {
 	stop();
 
 	if (!ctx) ctx = new AudioContext();
@@ -35,32 +60,8 @@ export function play(fileId: string, buffer: AudioBuffer, band: FreqBand | null,
 
 	let lastNode: AudioNode = source;
 	if (band && (band.lowHz !== null || band.highHz !== null)) {
-		if (band.lowHz !== null) {
-			const hp1 = ctx.createBiquadFilter();
-			hp1.type = 'highpass';
-			hp1.frequency.value = band.lowHz;
-			hp1.Q.value = Math.SQRT1_2;
-			const hp2 = ctx.createBiquadFilter();
-			hp2.type = 'highpass';
-			hp2.frequency.value = band.lowHz;
-			hp2.Q.value = Math.SQRT1_2;
-			lastNode.connect(hp1);
-			hp1.connect(hp2);
-			lastNode = hp2;
-		}
-		if (band.highHz !== null) {
-			const lp1 = ctx.createBiquadFilter();
-			lp1.type = 'lowpass';
-			lp1.frequency.value = band.highHz;
-			lp1.Q.value = Math.SQRT1_2;
-			const lp2 = ctx.createBiquadFilter();
-			lp2.type = 'lowpass';
-			lp2.frequency.value = band.highHz;
-			lp2.Q.value = Math.SQRT1_2;
-			lastNode.connect(lp1);
-			lp1.connect(lp2);
-			lastNode = lp2;
-		}
+		if (band.lowHz !== null) lastNode = addFilterPair(ctx, 'highpass', band.lowHz, lastNode);
+		if (band.highHz !== null) lastNode = addFilterPair(ctx, 'lowpass', band.highHz, lastNode);
 	}
 	lastNode.connect(gainNode);
 	gainNode.connect(ctx.destination);

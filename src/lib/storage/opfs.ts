@@ -37,10 +37,7 @@ async function getFilesDir(projectId: string): Promise<FileSystemDirectoryHandle
 	return project.getDirectoryHandle('files', { create: true });
 }
 
-async function readJsonFile<T>(
-	dir: FileSystemDirectoryHandle,
-	name: string
-): Promise<T | null> {
+async function readJsonFile<T>(dir: FileSystemDirectoryHandle, name: string): Promise<T | null> {
 	try {
 		const fh = await dir.getFileHandle(name);
 		const file = await fh.getFile();
@@ -104,10 +101,7 @@ export async function removeAudioFile(projectId: string, fileId: string): Promis
 	);
 }
 
-export async function reorderAudioFiles(
-	projectId: string,
-	orderedIds: string[]
-): Promise<void> {
+export async function reorderAudioFiles(projectId: string, orderedIds: string[]): Promise<void> {
 	const manifest = await loadFileManifest(projectId);
 	const byId = new Map(manifest.map((m) => [m.id, m]));
 	const reordered = orderedIds.map((id) => byId.get(id)).filter(Boolean) as AudioFileMeta[];

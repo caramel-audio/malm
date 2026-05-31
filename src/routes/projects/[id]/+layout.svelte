@@ -1,8 +1,19 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { untrack } from 'svelte';
-	import { files, setCurrentProjectId, extractMetadata, sampleRateFromBuffer } from '$lib/state/files.svelte';
-	import { options, loadOptionsForProject, saveOptionsForProject, resetOptions } from '$lib/state/options.svelte';
+	import {
+		files,
+		setCurrentProjectId,
+		extractMetadata,
+		sampleRateFromBuffer
+	} from '$lib/state/files.svelte';
+	import {
+		options,
+		loadOptionsForProject,
+		saveOptionsForProject,
+		resetOptions
+	} from '$lib/state/options.svelte';
+	import { resetAnalysis } from '$lib/state/analysis.svelte';
 	import { results, setResults, clearResults, markResultsStale } from '$lib/state/results.svelte';
 	import { updateProjectMeta } from '$lib/state/project.svelte';
 	import { loadAudioFiles, loadResults, saveResults } from '$lib/storage/opfs';
@@ -28,6 +39,7 @@
 		files.list = [];
 		clearResults();
 		resetOptions();
+		resetAnalysis();
 		clearTimeout(optionsSaveTimer);
 		clearTimeout(resultsSaveTimer);
 
@@ -41,6 +53,7 @@
 			files.list = [];
 			clearResults();
 			resetOptions();
+			resetAnalysis();
 			clearTimeout(optionsSaveTimer);
 			clearTimeout(resultsSaveTimer);
 		};
@@ -48,11 +61,11 @@
 
 	// Auto-save options (debounced, only once project is loaded).
 	$effect(() => {
-		// reactive dependencies: frequencies + view settings
-		const _freqs = [...options.frequencies];
-		const _band = options.selectedBand;
-		const _loudness = options.loudnessType;
-		const _normalize = options.normalizeToQuietest;
+		// Access each field to register as a reactive dependency.
+		void options.frequencies.join(',');
+		void options.selectedBand;
+		void options.loudnessType;
+		void options.normalizeToQuietest;
 		const id = projectId;
 		if (!isLoaded) return;
 		clearTimeout(optionsSaveTimer);
@@ -74,7 +87,7 @@
 	// Mark results stale when files or options change after initial load.
 	// Uses untrack() so isLoaded is not a reactive dep — avoids firing on load completion.
 	$effect(() => {
-		files.list.map(f => f.id).join(','); // reactive dep: file set
+		files.list.map((f) => f.id).join(','); // reactive dep: file set
 		if (untrack(() => !isLoaded)) return;
 		untrack(() => markResultsStale());
 	});
@@ -95,7 +108,9 @@
 				const ctx = new AudioContext();
 				const loaded = await Promise.all(
 					audioFiles.map(async ({ meta, arrayBuffer }) => {
-						const file = new File([arrayBuffer], meta.fileName, { type: meta.mimeType || 'audio/mpeg' });
+						const file = new File([arrayBuffer], meta.fileName, {
+							type: meta.mimeType || 'audio/mpeg'
+						});
 						const [buffer, tags] = await Promise.all([
 							ctx.decodeAudioData(arrayBuffer.slice(0)),
 							extractMetadata(file)
@@ -109,7 +124,8 @@
 							duration: buffer.duration,
 							codec: tags.codec,
 							bitrate: tags.bitrate,
-							sampleRate: tags.sampleRate ?? sampleRateFromBuffer(arrayBuffer, meta.mimeType, meta.fileName),
+							sampleRate:
+								tags.sampleRate ?? sampleRateFromBuffer(arrayBuffer, meta.mimeType, meta.fileName),
 							coverUrl: tags.coverUrl,
 							buffer
 						};
@@ -131,7 +147,8 @@
 	}
 
 	function handleKeydown(event: KeyboardEvent) {
-		if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+		if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement)
+			return;
 		if (event.key === ' ' || event.key === 'k') {
 			event.preventDefault();
 			togglePlayPause();
@@ -142,15 +159,17 @@
 <svelte:window onkeydown={handleKeydown} />
 
 {#if !isLoaded}
-	<div class="flex items-center justify-center h-full py-24 text-gray-600 text-xs uppercase tracking-widest">
+	<div
+		class="flex h-full items-center justify-center py-24 text-xs tracking-widest text-gray-600 uppercase"
+	>
 		Loading…
 	</div>
 {:else if loadError}
-	<div class="flex items-center justify-center h-full py-24 text-danger-400 text-xs">
+	<div class="flex h-full items-center justify-center py-24 text-xs text-danger-400">
 		{loadError}
 	</div>
 {:else}
-	<div class="flex-1 flex flex-col min-h-0 h-full">
+	<div class="flex h-full min-h-0 flex-1 flex-col">
 		{@render children()}
 	</div>
 {/if}

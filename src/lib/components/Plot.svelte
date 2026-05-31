@@ -24,7 +24,9 @@
 	const HEIGHT = 180;
 
 	const bands = $derived(buildBands(options.frequencies));
-	const currentBand = $derived<FreqBand | null>(bands.find((b) => b.label === selectedBand) ?? null);
+	const currentBand = $derived<FreqBand | null>(
+		bands.find((b) => b.label === selectedBand) ?? null
+	);
 
 	const bandResult = $derived(result.bands.find((b) => b.label === selectedBand));
 	const loudnessData = $derived(bandResult?.[loudnessType] ?? []);
@@ -42,9 +44,7 @@
 		(result.bands.find((b) => b.label === 'full') ?? result.bands[0])?.integrated
 	);
 
-	const fullBandLufs = $derived(
-		result.bands.find((b) => b.label === 'full')?.integrated ?? null
-	);
+	const fullBandLufs = $derived(result.bands.find((b) => b.label === 'full')?.integrated ?? null);
 
 	// Gain to apply when playing a band buffer so it sounds proportionally quieter than full spectrum
 	const bandPlaybackGainDb = $derived(
@@ -62,7 +62,7 @@
 		playback.isPlaying && playback.currentFileId === audioFile.id
 			? (playback.currentTime / audioFile.duration) *
 					(containerWidth - MARGIN.left - MARGIN.right) +
-				MARGIN.left
+					MARGIN.left
 			: null
 	);
 
@@ -87,7 +87,7 @@
 			[-30, '#3b82f6'],
 			[-25, '#22c55e'],
 			[-20, '#eab308'],
-			[-15, '#ef4444'],
+			[-15, '#ef4444']
 		];
 		const clamped = Math.max(stops[0][0], Math.min(stops[stops.length - 1][0], lufs));
 		for (let i = 0; i < stops.length - 1; i++) {
@@ -124,7 +124,14 @@
 		untrack(() => {
 			if (!playback.isPlaying || playback.currentFileId !== audioFile.id) return;
 			const freqBand = bands.find((b) => b.label === band) ?? null;
-			if (audioFile.buffer) play(audioFile.id, audioFile.buffer, freqBand, playback.currentTime, lufsOffset + bandPlaybackGainDb);
+			if (audioFile.buffer)
+				play(
+					audioFile.id,
+					audioFile.buffer,
+					freqBand,
+					playback.currentTime,
+					lufsOffset + bandPlaybackGainDb
+				);
 		});
 	});
 
@@ -156,7 +163,12 @@
 
 		g.append('g')
 			.attr('transform', `translate(0,${innerH})`)
-			.call(d3.axisBottom(xScale).tickFormat((d) => formatTime(+d)).ticks(8))
+			.call(
+				d3
+					.axisBottom(xScale)
+					.tickFormat((d) => formatTime(+d))
+					.ticks(8)
+			)
 			.call((ax) => ax.select('.domain').attr('stroke', '#4d4d4d'))
 			.call((ax) => ax.selectAll('.tick line').attr('stroke', '#4d4d4d'))
 			.call((ax) =>
@@ -204,7 +216,7 @@
 					y1: yLufs(d[1]),
 					x2: xScale(next[0] / 1000),
 					y2: yLufs(next[1]),
-					color: lufsColor((d[1] + next[1]) / 2),
+					color: lufsColor((d[1] + next[1]) / 2)
 				};
 			});
 
@@ -247,7 +259,14 @@
 			.on('click', (event) => {
 				const [mx] = d3.pointer(event);
 				const offsetSeconds = Math.max(0, xScale.invert(mx));
-				if (audioFile.buffer) play(audioFile.id, audioFile.buffer, currentBand, offsetSeconds, lufsOffset + bandPlaybackGainDb);
+				if (audioFile.buffer)
+					play(
+						audioFile.id,
+						audioFile.buffer,
+						currentBand,
+						offsetSeconds,
+						lufsOffset + bandPlaybackGainDb
+					);
 			})
 			.on('mousemove', (event) => {
 				const [mx] = d3.pointer(event);
@@ -275,45 +294,77 @@
 </script>
 
 <div class="border-b border-gray-700">
-	<div class="flex items-center gap-3 px-3 py-2 border-b border-gray-800">
+	<div class="flex items-center gap-3 border-b border-gray-800 px-3 py-2">
 		<button
-			class="text-gray-400 hover:text-white transition-colors cursor-pointer shrink-0"
+			class="shrink-0 cursor-pointer text-gray-400 transition-colors hover:text-white"
 			onclick={() => {
 				if (isThisFileActive) {
 					togglePlayPause();
 				} else {
-					if (audioFile.buffer) play(audioFile.id, audioFile.buffer, currentBand, 0, lufsOffset + bandPlaybackGainDb);
+					if (audioFile.buffer)
+						play(audioFile.id, audioFile.buffer, currentBand, 0, lufsOffset + bandPlaybackGainDb);
 				}
 			}}
 		>
 			{#if isThisFilePlaying}
-				<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4">
-					<path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" />
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke-width="1.5"
+					stroke="currentColor"
+					class="size-4"
+				>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						d="M15.75 5.25v13.5m-7.5-13.5v13.5"
+					/>
 				</svg>
 			{:else}
-				<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4">
-					<path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke-width="1.5"
+					stroke="currentColor"
+					class="size-4"
+				>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z"
+					/>
 				</svg>
 			{/if}
 		</button>
-			{#if lufsOffset !== 0}
-				<span class="text-gray-400 text-xs font-mono shrink-0">{lufsOffset > 0 ? '+' : ''}{lufsOffset.toFixed(1)} dB</span>
-			{/if}
-			<span class="text-secondary-400 text-xs uppercase tracking-widest font-bold flex-1 min-w-0 truncate">{audioFile.name}</span>
-			{#if audioFile.artist}
-				<span class="text-gray-500 text-xs uppercase tracking-widest shrink-0">{audioFile.artist}</span>
-			{/if}
-		{#if integratedLufs !== undefined && isFinite(integratedLufs)}
-			<span class="text-gray-400 text-xs font-mono shrink-0">LUFS-I: {integratedLufs.toFixed(1)}</span>
+		{#if lufsOffset !== 0}
+			<span class="shrink-0 font-mono text-xs text-gray-400"
+				>{lufsOffset > 0 ? '+' : ''}{lufsOffset.toFixed(1)} dB</span
+			>
 		{/if}
-		<span class="text-gray-500 text-xs shrink-0">{formatTime(audioFile.duration)}</span>
+		<span
+			class="min-w-0 flex-1 truncate text-xs font-bold tracking-widest text-secondary-400 uppercase"
+			>{audioFile.name}</span
+		>
+		{#if audioFile.artist}
+			<span class="shrink-0 text-xs tracking-widest text-gray-500 uppercase"
+				>{audioFile.artist}</span
+			>
+		{/if}
+		{#if integratedLufs !== undefined && isFinite(integratedLufs)}
+			<span class="shrink-0 font-mono text-xs text-gray-400"
+				>LUFS-I: {integratedLufs.toFixed(1)}</span
+			>
+		{/if}
+		<span class="shrink-0 text-xs text-gray-500">{formatTime(audioFile.duration)}</span>
 	</div>
 
 	<div class="relative" bind:clientWidth={containerWidth}>
 		<div bind:this={container} class="w-full bg-gray-950"></div>
 		{#if playheadLeft !== null}
 			<div
-				class="absolute top-0 w-px bg-white/40 pointer-events-none"
+				class="pointer-events-none absolute top-0 w-px bg-white/40"
 				style:left="{playheadLeft}px"
 				style:top="{MARGIN.top}px"
 				style:height="{HEIGHT - MARGIN.top - MARGIN.bottom}px"
@@ -322,14 +373,22 @@
 	</div>
 
 	{#if hoverInfo}
-		<div class="flex gap-6 px-3 py-1 border-t border-gray-800 text-[10px] font-mono text-gray-300">
+		<div class="flex gap-6 border-t border-gray-800 px-3 py-1 font-mono text-[10px] text-gray-300">
 			<span>TIME {formatTime(hoverInfo.time)}</span>
 			<span>PEAK {hoverInfo.peak?.toFixed(1) ?? '—'} dBFS</span>
-			<span>MOMENTARY {hoverInfo.momentary !== null ? (hoverInfo.momentary + lufsOffset).toFixed(1) : '—'} LUFS</span>
-			<span>SHORT-TERM {hoverInfo.shortTerm !== null ? (hoverInfo.shortTerm + lufsOffset).toFixed(1) : '—'} LUFS</span>
+			<span
+				>MOMENTARY {hoverInfo.momentary !== null
+					? (hoverInfo.momentary + lufsOffset).toFixed(1)
+					: '—'} LUFS</span
+			>
+			<span
+				>SHORT-TERM {hoverInfo.shortTerm !== null
+					? (hoverInfo.shortTerm + lufsOffset).toFixed(1)
+					: '—'} LUFS</span
+			>
 		</div>
 	{:else}
-		<div class="px-3 py-1 border-t border-gray-800 text-[10px] font-mono text-gray-500">
+		<div class="border-t border-gray-800 px-3 py-1 font-mono text-[10px] text-gray-500">
 			HOVER TO INSPECT
 		</div>
 	{/if}

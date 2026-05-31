@@ -20,6 +20,7 @@ npm run test         # unit + e2e (CI mode)
 ```
 
 Run a single vitest test file:
+
 ```bash
 npx vitest run src/lib/path/to/file.spec.ts
 ```
@@ -34,6 +35,7 @@ npx vitest run src/lib/path/to/file.spec.ts
 ```
 
 Layout hierarchy:
+
 - `src/routes/+layout.svelte` — root layout (SplashScreen on first visit)
 - `src/routes/projects/+layout.svelte` — renders NavBar above all project pages
 - `src/routes/projects/[id]/+layout.svelte` — loads project data from OPFS/localStorage on mount, auto-saves changes, handles keyboard shortcuts
@@ -42,31 +44,34 @@ When a project already has saved results, the `[id]` layout redirects straight t
 
 ## Storage
 
-| Data | Store | Key/Path |
-|------|-------|----------|
-| Project list (id, name, dates, file count/size) | localStorage | `malm_projects` |
-| Per-project crossover options | localStorage | `malm_project_{id}_options` |
-| Audio file binaries | OPFS | `/malm/projects/{id}/files/{fileId}` |
-| File manifest (ordered metadata) | OPFS | `/malm/projects/{id}/files/manifest.json` |
-| Analysis results | OPFS | `/malm/projects/{id}/results.json` |
+| Data                                            | Store        | Key/Path                                  |
+| ----------------------------------------------- | ------------ | ----------------------------------------- |
+| Project list (id, name, dates, file count/size) | localStorage | `malm_projects`                           |
+| Per-project crossover options                   | localStorage | `malm_project_{id}_options`               |
+| Audio file binaries                             | OPFS         | `/malm/projects/{id}/files/{fileId}`      |
+| File manifest (ordered metadata)                | OPFS         | `/malm/projects/{id}/files/manifest.json` |
+| Analysis results                                | OPFS         | `/malm/projects/{id}/results.json`        |
 
 OPFS helpers live in `src/lib/storage/opfs.ts`.
 
 ## Architecture
 
 **State** lives in `$state` modules under `src/lib/state/`:
+
 - `project.svelte.ts` — project list + CRUD (localStorage-backed); `projects.list`, `createProject`, `deleteProject`, `renameProject`
 - `files.svelte.ts` — loaded `AudioFile` objects (id, File, decoded `AudioBuffer`, metadata); writes to OPFS when `currentProjectId` is set
 - `options.svelte.ts` — crossover frequencies and analysis progress; `loadOptionsForProject` / `saveOptionsForProject` use per-project localStorage keys
 - `results.svelte.ts` — `FileResult[]` produced by analysis; each file has one `BandResult` per band; `isFresh` flag indicates whether results match the current file set and options (used to disable the Analyze button)
 
 **Audio pipeline** (`src/lib/audio/`):
+
 1. `analysis.ts` — top-level orchestrator; iterates files × bands, calls filters then loudness, reports progress via callback
 2. `filters.ts` — `buildBands(frequencies)` derives `FreqBand[]` from crossover list; `renderBand()` runs a 4th-order LR4 filter chain through `OfflineAudioContext`
 3. `loudness.ts` — K-weighted LUFS measurement; custom O(N) sliding-window implementation for momentary/short-term curves, plus `@domchristie/needles` for EBU R128 integrated LUFS
 4. `playback.svelte.ts` — stateful playback via `AudioContext`; applies the same LR4 filter chain live so band-isolated playback matches analysis
 
 **Components** (`src/lib/components/`):
+
 - `NavBar.svelte` — top bar present on all project pages; logo, breadcrumb with project switcher dropdown, Setup/Analysis tabs, info button; two-row on mobile (breadcrumb row + tab row)
 - `Upload.svelte` — file drop zone + track list with drag-to-reorder
 - `Options.svelte` — crossover frequency editor

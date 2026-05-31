@@ -51,7 +51,10 @@
 	function openNewModal() {
 		newName = 'Untitled Project';
 		showNewModal = true;
-		tick().then(() => { newNameInput?.focus(); newNameInput?.select(); });
+		tick().then(() => {
+			newNameInput?.focus();
+			newNameInput?.select();
+		});
 	}
 
 	function startEdit(p: ProjectMeta) {
@@ -76,26 +79,33 @@
 	const usageFraction = $derived(storageQuota > 0 ? Math.min(storageUsage / storageQuota, 1) : 0);
 </script>
 
-<div class="flex flex-col h-full overflow-y-auto">
+<div class="flex h-full flex-col overflow-y-auto">
 	<!-- Card grid -->
 	<div class="flex-1 p-4 sm:p-6">
-		<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-
+		<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
 			<!-- New Project card -->
 			<button
 				onclick={openNewModal}
-				class="border border-secondary-400 bg-secondary-400 hover:bg-secondary-300 transition-colors flex items-center justify-center min-h-[80px] text-gray-950 font-bold text-xs uppercase tracking-widest gap-2"
+				class="flex min-h-[80px] items-center justify-center gap-2 border border-secondary-400 bg-secondary-400 text-xs font-bold tracking-widest text-gray-950 uppercase transition-colors hover:bg-secondary-300"
 			>
-				<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" class="w-4 h-4">
-					<path d="M8 2v12M2 8h12"/>
+				<svg
+					viewBox="0 0 16 16"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="square"
+					class="h-4 w-4"
+				>
+					<path d="M8 2v12M2 8h12" />
 				</svg>
 				New Project
 			</button>
 
 			<!-- Existing project cards -->
 			{#each projects.list as p (p.id)}
-				<div class="border border-gray-700 bg-gray-900 hover:border-gray-600 transition-colors relative">
-
+				<div
+					class="relative border border-gray-700 bg-gray-900 transition-colors hover:border-gray-600"
+				>
 					{#if editingId === p.id}
 						<!-- Rename mode -->
 						<div class="p-4">
@@ -103,18 +113,22 @@
 								bind:this={editingInput}
 								bind:value={editingName}
 								onblur={commitEdit}
-								onkeydown={(e) => { e.stopPropagation(); if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') editingId = null; }}
-								class="w-full bg-gray-800 border border-secondary-400 text-gray-100 text-sm font-bold px-2 py-0.5 focus:outline-none"
+								onkeydown={(e) => {
+									e.stopPropagation();
+									if (e.key === 'Enter') commitEdit();
+									if (e.key === 'Escape') editingId = null;
+								}}
+								class="w-full border border-secondary-400 bg-gray-800 px-2 py-0.5 text-sm font-bold text-gray-100 focus:outline-none"
 							/>
 						</div>
 					{:else}
 						<!-- Normal mode: clickable card body -->
 						<button
-							class="w-full text-left p-4 flex flex-col gap-2 pr-16"
+							class="flex w-full flex-col gap-2 p-4 pr-16 text-left"
 							onclick={() => goto(`/projects/${p.id}`)}
 						>
-							<span class="font-bold text-sm text-gray-100 truncate">{p.name}</span>
-							<div class="flex items-center gap-3 text-xs text-gray-500 flex-wrap">
+							<span class="truncate text-sm font-bold text-gray-100">{p.name}</span>
+							<div class="flex flex-wrap items-center gap-3 text-xs text-gray-500">
 								<span>{formatRelativeTime(p.updatedAt)}</span>
 								{#if p.fileCount > 0}
 									<span>·</span>
@@ -128,25 +142,45 @@
 						</button>
 
 						<!-- Pencil + Trash buttons -->
-						<div class="absolute top-0 right-0 bottom-0 flex items-center gap-0 border-l border-gray-700">
+						<div
+							class="absolute top-0 right-0 bottom-0 flex items-center gap-0 border-l border-gray-700"
+						>
 							<button
-								onclick={(e) => { e.stopPropagation(); startEdit(p); }}
-								class="h-full px-2.5 flex items-center text-gray-600 hover:text-gray-300 hover:bg-gray-800 transition-colors border-r border-gray-700"
+								onclick={(e) => {
+									e.stopPropagation();
+									startEdit(p);
+								}}
+								class="flex h-full items-center border-r border-gray-700 px-2.5 text-gray-600 transition-colors hover:bg-gray-800 hover:text-gray-300"
 								aria-label="Rename project"
 							>
-								<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" class="w-3.5 h-3.5">
-									<path d="M11.5 2.5l2 2-8 8H3.5v-2l8-8z" stroke-linejoin="round"/>
-									<path d="M10 4l2 2"/>
+								<svg
+									viewBox="0 0 16 16"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="1.5"
+									class="h-3.5 w-3.5"
+								>
+									<path d="M11.5 2.5l2 2-8 8H3.5v-2l8-8z" stroke-linejoin="round" />
+									<path d="M10 4l2 2" />
 								</svg>
 							</button>
 							<button
-								onclick={(e) => { e.stopPropagation(); deleteConfirmId = p.id; }}
-								class="h-full px-2.5 flex items-center text-gray-600 hover:text-danger-400 hover:bg-gray-800 transition-colors"
+								onclick={(e) => {
+									e.stopPropagation();
+									deleteConfirmId = p.id;
+								}}
+								class="flex h-full items-center px-2.5 text-gray-600 transition-colors hover:bg-gray-800 hover:text-danger-400"
 								aria-label="Delete project"
 							>
-								<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" class="w-3.5 h-3.5">
-									<path d="M3 4h10M6 4V2.5h4V4M5 4v8.5h6V4" stroke-linejoin="round"/>
-									<path d="M7 7v4M9 7v4"/>
+								<svg
+									viewBox="0 0 16 16"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="1.5"
+									class="h-3.5 w-3.5"
+								>
+									<path d="M3 4h10M6 4V2.5h4V4M5 4v8.5h6V4" stroke-linejoin="round" />
+									<path d="M7 7v4M9 7v4" />
 								</svg>
 							</button>
 						</div>
@@ -158,12 +192,15 @@
 
 	<!-- OPFS usage bar -->
 	{#if storageQuota > 0}
-		<div class="shrink-0 border-t border-gray-700 px-4 sm:px-6 py-2 flex items-center gap-3">
-			<span class="text-xs text-gray-500 shrink-0">Storage</span>
-			<div class="flex-1 h-2 bg-gray-800 border border-gray-700 min-w-0">
-				<div class="h-full bg-secondary-400 transition-all" style="width: {usageFraction * 100}%"></div>
+		<div class="flex shrink-0 items-center gap-3 border-t border-gray-700 px-4 py-2 sm:px-6">
+			<span class="shrink-0 text-xs text-gray-500">Storage</span>
+			<div class="h-2 min-w-0 flex-1 border border-gray-700 bg-gray-800">
+				<div
+					class="h-full bg-secondary-400 transition-all"
+					style="width: {usageFraction * 100}%"
+				></div>
 			</div>
-			<span class="text-xs text-gray-500 shrink-0 tabular-nums">
+			<span class="shrink-0 text-xs text-gray-500 tabular-nums">
 				{formatBytes(storageUsage)} / {formatBytes(storageQuota)}
 			</span>
 		</div>
@@ -175,26 +212,33 @@
 	<div
 		class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4"
 		role="presentation"
-		onclick={(e) => { if (e.target === e.currentTarget) showNewModal = false; }}
+		onclick={(e) => {
+			if (e.target === e.currentTarget) showNewModal = false;
+		}}
 	>
-		<div class="bg-gray-900 border border-gray-700 p-6 w-full max-w-sm shadow-2xl">
-			<h2 class="text-xs uppercase tracking-widest text-gray-400 mb-4">New Project</h2>
+		<div class="w-full max-w-sm border border-gray-700 bg-gray-900 p-6 shadow-2xl">
+			<h2 class="mb-4 text-xs tracking-widest text-gray-400 uppercase">New Project</h2>
 			<input
 				bind:this={newNameInput}
 				bind:value={newName}
-				onkeydown={(e) => { if (e.key === 'Enter') handleCreate(); if (e.key === 'Escape') showNewModal = false; }}
-				class="w-full bg-gray-800 border border-gray-700 focus:border-secondary-400 text-gray-100 text-sm px-3 py-2 focus:outline-none mb-4"
+				onkeydown={(e) => {
+					if (e.key === 'Enter') handleCreate();
+					if (e.key === 'Escape') showNewModal = false;
+				}}
+				class="mb-4 w-full border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-gray-100 focus:border-secondary-400 focus:outline-none"
 				placeholder="Project name"
 			/>
 			<div class="flex justify-end gap-2">
 				<button
 					onclick={() => (showNewModal = false)}
-					class="px-4 py-1.5 text-xs uppercase tracking-widest border border-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-300 transition-colors"
-				>Cancel</button>
+					class="border border-gray-700 px-4 py-1.5 text-xs tracking-widest text-gray-400 uppercase transition-colors hover:border-gray-500 hover:text-gray-300"
+					>Cancel</button
+				>
 				<button
 					onclick={handleCreate}
-					class="px-4 py-1.5 text-xs uppercase tracking-widest bg-secondary-400 text-gray-950 font-bold hover:bg-secondary-300 transition-colors"
-				>Create</button>
+					class="bg-secondary-400 px-4 py-1.5 text-xs font-bold tracking-widest text-gray-950 uppercase transition-colors hover:bg-secondary-300"
+					>Create</button
+				>
 			</div>
 		</div>
 	</div>
@@ -206,22 +250,27 @@
 	<div
 		class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4"
 		role="presentation"
-		onclick={(e) => { if (e.target === e.currentTarget) deleteConfirmId = null; }}
+		onclick={(e) => {
+			if (e.target === e.currentTarget) deleteConfirmId = null;
+		}}
 	>
-		<div class="bg-gray-900 border border-gray-700 p-6 w-full max-w-sm shadow-2xl">
-			<h2 class="text-xs uppercase tracking-widest text-danger-400 mb-3">Delete Project</h2>
-			<p class="text-sm text-gray-300 mb-4">
-				Delete <strong class="text-gray-100">"{target?.name}"</strong>? All audio files and analysis results will be permanently removed.
+		<div class="w-full max-w-sm border border-gray-700 bg-gray-900 p-6 shadow-2xl">
+			<h2 class="mb-3 text-xs tracking-widest text-danger-400 uppercase">Delete Project</h2>
+			<p class="mb-4 text-sm text-gray-300">
+				Delete <strong class="text-gray-100">"{target?.name}"</strong>? All audio files and analysis
+				results will be permanently removed.
 			</p>
 			<div class="flex justify-end gap-2">
 				<button
-					onclick={() => deleteConfirmId = null}
-					class="px-4 py-1.5 text-xs uppercase tracking-widest border border-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-300 transition-colors"
-				>Cancel</button>
+					onclick={() => (deleteConfirmId = null)}
+					class="border border-gray-700 px-4 py-1.5 text-xs tracking-widest text-gray-400 uppercase transition-colors hover:border-gray-500 hover:text-gray-300"
+					>Cancel</button
+				>
 				<button
 					onclick={() => confirmDelete(deleteConfirmId!)}
-					class="px-4 py-1.5 text-xs uppercase tracking-widest bg-danger-500 text-white font-bold hover:bg-danger-400 transition-colors"
-				>Delete</button>
+					class="bg-danger-500 px-4 py-1.5 text-xs font-bold tracking-widest text-white uppercase transition-colors hover:bg-danger-400"
+					>Delete</button
+				>
 			</div>
 		</div>
 	</div>

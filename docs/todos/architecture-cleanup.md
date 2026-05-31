@@ -1,3 +1,0 @@
-after all those big changes, analyze if the software's architecture should be refined, refactoring should be done, and the like.
-The goal is to have a clean, modular, expendable architecture and as few lines of code as possible.
-The reason is that this project was built up bigger and bigger over time, and the edits were done by AI, which is prone to writing a lot of extra code for each todo instead of fixing the architecture first.

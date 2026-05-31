@@ -103,15 +103,20 @@
 	}
 </script>
 
-<section class="h-full flex flex-col">
-	<div class="px-3 py-2 border-b border-gray-700 text-secondary-400 uppercase tracking-widest text-xs">
+<section class="flex h-full flex-col">
+	<div
+		class="border-b border-gray-700 px-3 py-2 text-xs tracking-widest text-secondary-400 uppercase"
+	>
 		FILES
 	</div>
 
 	<!-- Drop zone -->
 	<button
 		type="button"
-		class="m-3 border border-dashed flex flex-col items-center justify-center gap-2 py-6 text-xs cursor-pointer transition-colors {files.list.length === 0 ? 'flex-1' : ''} {dragOver
+		class="m-3 flex cursor-pointer flex-col items-center justify-center gap-2 border border-dashed py-6 text-xs transition-colors {files
+			.list.length === 0
+			? 'flex-1'
+			: ''} {dragOver
 			? 'border-secondary-400 text-secondary-400'
 			: 'border-gray-700 text-gray-400 hover:border-secondary-400 hover:text-secondary-400'}"
 		ondrop={onDrop}
@@ -140,7 +145,10 @@
 	<ul class="{files.list.length > 0 ? 'flex-1' : ''} overflow-y-auto">
 		{#each files.list as f, i (f.id)}
 			<li
-				class="flex items-center gap-3 px-3 py-2 border-b border-gray-800 hover:bg-gray-900 {dragSrcIndex === i ? 'opacity-40' : ''}"
+				class="flex items-center gap-3 border-b border-gray-800 px-3 py-2 hover:bg-gray-900 {dragSrcIndex ===
+				i
+					? 'opacity-40'
+					: ''}"
 				draggable="true"
 				ondragstart={(e) => onRowDragStart(e, i)}
 				ondragover={onRowDragOver}
@@ -148,23 +156,30 @@
 				ondragend={onRowDragEnd}
 			>
 				<!-- drag handle -->
-				<span class="text-gray-500 cursor-grab select-none shrink-0">⠿</span>
+				<span class="shrink-0 cursor-grab text-gray-500 select-none">⠿</span>
 
 				<!-- album art -->
-				<div class="shrink-0 w-12 h-12 rounded-sm overflow-hidden bg-gray-800 flex items-center justify-center">
+				<div
+					class="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-sm bg-gray-800"
+				>
 					{#if f.coverUrl}
-						<img src={f.coverUrl} alt="" class="w-full h-full object-cover" draggable="false" />
+						<img src={f.coverUrl} alt="" class="h-full w-full object-cover" draggable="false" />
 					{:else}
-						<svg class="w-5 h-5 text-gray-600" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+						<svg
+							class="h-5 w-5 text-gray-600"
+							viewBox="0 0 24 24"
+							fill="currentColor"
+							aria-hidden="true"
+						>
 							<path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6Z" />
 						</svg>
 					{/if}
 				</div>
 
 				<!-- metadata -->
-				<div class="flex-1 min-w-0">
+				<div class="min-w-0 flex-1">
 					<div class="truncate text-xs text-gray-100">{f.name}</div>
-					<div class="truncate text-xs text-gray-500 mt-0.5">
+					<div class="mt-0.5 truncate text-xs text-gray-500">
 						{#if f.artist || f.album}
 							{[f.artist, f.album].filter(Boolean).join(' · ')}
 						{:else}
@@ -178,10 +193,10 @@
 					<div class="text-xs text-gray-500 tabular-nums">
 						{formatBitrate(f.bitrate, f.codec, f.file) || '—'}
 					</div>
-					<div class="text-xs text-gray-400 tabular-nums mt-0.5">
+					<div class="mt-0.5 text-xs text-gray-400 tabular-nums">
 						{#if f.sampleRate}
 							<span class="text-gray-500">{formatSampleRate(f.sampleRate)}</span>
-							<span class="text-gray-700 mx-1">·</span>
+							<span class="mx-1 text-gray-700">·</span>
 						{/if}
 						{formatDuration(f.duration)}
 					</div>
@@ -189,10 +204,10 @@
 
 				<!-- remove -->
 				<button
-					class="text-gray-600 hover:text-secondary-400 text-xs shrink-0"
+					class="shrink-0 text-xs text-gray-600 hover:text-secondary-400"
 					onclick={() => removeFile(f.id)}
-					aria-label="Remove {f.name}"
-				>✕</button>
+					aria-label="Remove {f.name}">✕</button
+				>
 			</li>
 		{/each}
 	</ul>
