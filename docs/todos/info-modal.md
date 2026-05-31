@@ -1,9 +1,0 @@
-- what is currently the splash screen shall become a modal
-- the modal shall show automatically on very first visit by the user. on subsequent visits, it will not be shown
-- the modal can be opened by pressing the i in the top right
-- an explanation text is added between version and logo. You add the following headers, and leave some lorem text for each for me to write myself:
-  - What is MALM?
-  - How does it work?
-  - What happens to my data?
-  - Who created this?
-- the modal should use the same styling as the "new project enter name" modal, but bigger (almost page filling, with padding)
