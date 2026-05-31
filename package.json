@@ -45,6 +45,7 @@
 		"vitest-browser-svelte": "^2.1.0"
 	},
 	"dependencies": {
+		"@sveltejs/adapter-node": "^5.5.4",
 		"@types/d3": "^7.4.3",
 		"d3": "^7.9.0",
 		"music-metadata": "^11.12.3"
