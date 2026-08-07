@@ -149,30 +149,36 @@ export async function addFiles(fileList: FileList | File[]): Promise<string[]> {
 				buffer
 			});
 
+			// Persistence is best-effort: a browser without OPFS (or one that is out
+			// of quota) should still be able to load and analyse the file.
 			if (currentProjectId) {
-				await saveAudioFile(
-					currentProjectId,
-					{
-						id,
-						name,
-						artist,
-						album,
-						duration: buffer.duration,
-						fileName: file.name,
-						mimeType: mimeTypeFor(file) || 'audio/mpeg',
-						sizeBytes: file.size,
-						codec,
-						bitrate,
-						sampleRate
-					},
-					file
-				);
+				try {
+					await saveAudioFile(
+						currentProjectId,
+						{
+							id,
+							name,
+							artist,
+							album,
+							duration: buffer.duration,
+							fileName: file.name,
+							mimeType: mimeTypeFor(file) || 'audio/mpeg',
+							sizeBytes: file.size,
+							codec,
+							bitrate,
+							sampleRate
+						},
+						file
+					);
 
-				updateProjectMeta(currentProjectId, {
-					fileCount: files.list.length,
-					fileSizeBytes: totalSizeBytes(),
-					updatedAt: Date.now()
-				});
+					updateProjectMeta(currentProjectId, {
+						fileCount: files.list.length,
+						fileSizeBytes: totalSizeBytes(),
+						updatedAt: Date.now()
+					});
+				} catch (e) {
+					console.warn('Could not persist audio file:', e);
+				}
 			}
 		})
 	);
@@ -188,7 +194,7 @@ export function removeFile(id: string): void {
 		if (removed.coverUrl) URL.revokeObjectURL(removed.coverUrl);
 
 		if (currentProjectId) {
-			removeAudioFile(currentProjectId, id);
+			removeAudioFile(currentProjectId, id).catch(() => {});
 			updateProjectMeta(currentProjectId, {
 				fileCount: files.list.length,
 				fileSizeBytes: totalSizeBytes(),
@@ -207,6 +213,6 @@ export function reorderFiles(from: number, to: number): void {
 		reorderAudioFiles(
 			currentProjectId,
 			files.list.map((f) => f.id)
-		);
+		).catch(() => {});
 	}
 }

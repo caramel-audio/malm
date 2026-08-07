@@ -69,7 +69,8 @@ export async function deleteProject(id: string): Promise<void> {
 	// Clean up per-project localStorage keys
 	localStorage.removeItem(`malm_project_${id}_options`);
 
-	await deleteProjectFiles(id);
+	// Storage may be unavailable; the project is gone from the list either way.
+	await deleteProjectFiles(id).catch(() => {});
 }
 
 export function renameProject(id: string, name: string): void {

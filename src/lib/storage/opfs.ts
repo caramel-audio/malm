@@ -17,7 +17,16 @@ export type AudioFileMeta = {
 	sampleRate: number | null;
 };
 
+/**
+ * OPFS is missing in some browsing contexts (iOS private browsing, older
+ * WebKit). Persistence is optional — the app still runs entirely in memory.
+ */
+export function isStorageAvailable(): boolean {
+	return typeof navigator !== 'undefined' && typeof navigator.storage?.getDirectory === 'function';
+}
+
 async function getMalmDir(): Promise<FileSystemDirectoryHandle> {
+	if (!isStorageAvailable()) throw new Error('OPFS is not available in this browser');
 	const root = await navigator.storage.getDirectory();
 	return root.getDirectoryHandle('malm', { create: true });
 }
@@ -158,6 +167,9 @@ export async function deleteProjectFiles(projectId: string): Promise<void> {
 // --- Storage usage ---
 
 export async function getStorageEstimate(): Promise<{ usage: number; quota: number }> {
+	if (typeof navigator === 'undefined' || typeof navigator.storage?.estimate !== 'function') {
+		return { usage: 0, quota: 0 };
+	}
 	const estimate = await navigator.storage.estimate();
 	return { usage: estimate.usage ?? 0, quota: estimate.quota ?? 0 };
 }
