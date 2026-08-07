@@ -1,6 +1,7 @@
 import { parseBlob, selectCover } from 'music-metadata';
 import { saveAudioFile, removeAudioFile, reorderAudioFiles } from '$lib/storage/opfs';
 import { updateProjectMeta } from '$lib/state/project.svelte';
+import { isLikelyAudioFile, mimeTypeFor } from '$lib/audio/formats';
 
 export type AudioFile = {
 	id: string;
@@ -101,17 +102,37 @@ function totalSizeBytes(): number {
 	return files.list.reduce((sum, f) => sum + f.file.size, 0);
 }
 
-export async function addFiles(fileList: FileList | File[]): Promise<void> {
+/**
+ * Adds every usable file and returns the names of the ones that were skipped
+ * (not audio, unreadable, or in a format this browser cannot decode) so the UI
+ * can report them instead of the whole batch failing.
+ */
+export async function addFiles(fileList: FileList | File[]): Promise<string[]> {
 	const ctx = new AudioContext();
-	const items = Array.from(fileList);
+	const skipped: string[] = [];
+	const items = Array.from(fileList).filter((file) => {
+		if (isLikelyAudioFile(file)) return true;
+		skipped.push(file.name);
+		return false;
+	});
 
 	await Promise.all(
 		items.map(async (file) => {
-			const arrayBuffer = await file.arrayBuffer();
-			const buffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
+			let arrayBuffer: ArrayBuffer;
+			let buffer: AudioBuffer;
+			try {
+				// iCloud-backed files can fail to read, and Safari rejects formats
+				// other browsers decode — neither should abort the rest of the batch.
+				arrayBuffer = await file.arrayBuffer();
+				buffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
+			} catch {
+				skipped.push(file.name);
+				return;
+			}
 			const meta = await extractMetadata(file);
 			const { name, artist, album, codec, bitrate, coverUrl } = meta;
-			const sampleRate = meta.sampleRate ?? sampleRateFromBuffer(arrayBuffer, file.type, file.name);
+			const sampleRate =
+				meta.sampleRate ?? sampleRateFromBuffer(arrayBuffer, mimeTypeFor(file), file.name);
 			const id = crypto.randomUUID();
 
 			files.list.push({
@@ -138,7 +159,7 @@ export async function addFiles(fileList: FileList | File[]): Promise<void> {
 						album,
 						duration: buffer.duration,
 						fileName: file.name,
-						mimeType: file.type || 'audio/mpeg',
+						mimeType: mimeTypeFor(file) || 'audio/mpeg',
 						sizeBytes: file.size,
 						codec,
 						bitrate,
@@ -157,6 +178,7 @@ export async function addFiles(fileList: FileList | File[]): Promise<void> {
 	);
 
 	ctx.close();
+	return skipped;
 }
 
 export function removeFile(id: string): void {

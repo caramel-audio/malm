@@ -1,9 +1,19 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { files, addFiles, removeFile, reorderFiles } from '$lib/state/files.svelte';
+	import { AUDIO_ACCEPT, isIosLike } from '$lib/audio/formats';
 
 	let inputEl: HTMLInputElement;
 	let dragOver = $state(false);
 	let loading = $state(false);
+	let skipped = $state<string[]>([]);
+
+	// iOS/iPadOS Safari greys out anything its UTI mapping doesn't recognise, so
+	// there we omit `accept` and filter the selection ourselves.
+	let accept = $state<string | undefined>(AUDIO_ACCEPT);
+	onMount(() => {
+		if (isIosLike()) accept = undefined;
+	});
 
 	let dragSrcIndex = $state<number | null>(null);
 
@@ -54,8 +64,11 @@
 
 	async function handleFiles(fileList: FileList | File[]) {
 		loading = true;
-		await addFiles(fileList);
-		loading = false;
+		try {
+			skipped = await addFiles(fileList);
+		} finally {
+			loading = false;
+		}
 	}
 
 	function onDrop(e: DragEvent) {
@@ -132,14 +145,26 @@
 		{/if}
 	</button>
 
+	<!--
+		Visually hidden rather than `hidden`/`display:none`: Safari refuses to open
+		the picker for an input that isn't rendered.
+	-->
 	<input
 		bind:this={inputEl}
 		type="file"
-		accept="audio/*"
+		{accept}
 		multiple
-		hidden
+		class="sr-only"
+		tabindex="-1"
+		aria-hidden="true"
 		onchange={onInputChange}
 	/>
+
+	{#if skipped.length > 0}
+		<p class="mx-3 mb-2 text-xs text-secondary-400">
+			SKIPPED (UNSUPPORTED FORMAT): {skipped.join(', ')}
+		</p>
+	{/if}
 
 	<!-- File list -->
 	<ul class="{files.list.length > 0 ? 'flex-1' : ''} overflow-y-auto">
