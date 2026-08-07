@@ -1,19 +1,10 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { files, addFiles, removeFile, reorderFiles } from '$lib/state/files.svelte';
-	import { AUDIO_ACCEPT, isIosLike } from '$lib/audio/formats';
 
 	let inputEl: HTMLInputElement;
 	let dragOver = $state(false);
 	let loading = $state(false);
 	let skipped = $state<string[]>([]);
-
-	// iOS/iPadOS Safari greys out anything its UTI mapping doesn't recognise, so
-	// there we omit `accept` and filter the selection ourselves.
-	let accept = $state<string | undefined>(AUDIO_ACCEPT);
-	onMount(() => {
-		if (isIosLike()) accept = undefined;
-	});
 
 	let dragSrcIndex = $state<number | null>(null);
 
@@ -146,13 +137,17 @@
 	</button>
 
 	<!--
+		Deliberately no `accept`: it is the only thing that can grey out entries in
+		the iOS/iPadOS document picker, and WebKit's UTI mapping disables audio
+		files (mp3, flac, …) whether the list is `audio/*`, explicit MIME types or
+		extensions. Selection is validated in `addFiles` instead.
+
 		Visually hidden rather than `hidden`/`display:none`: Safari refuses to open
 		the picker for an input that isn't rendered.
 	-->
 	<input
 		bind:this={inputEl}
 		type="file"
-		{accept}
 		multiple
 		class="sr-only"
 		tabindex="-1"
