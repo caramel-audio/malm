@@ -13,17 +13,6 @@ export const options = $state({
 	normalizeToQuietest: false
 });
 
-export function addFrequency(hz: number): void {
-	if (options.frequencies.includes(hz)) return;
-	options.frequencies.push(hz);
-	options.frequencies.sort((a, b) => a - b);
-}
-
-export function removeFrequency(hz: number): void {
-	const idx = options.frequencies.indexOf(hz);
-	if (idx !== -1) options.frequencies.splice(idx, 1);
-}
-
 export function resetOptions(): void {
 	options.frequencies = [...DEFAULT_FREQUENCIES];
 	options.slope = DEFAULT_SLOPE;

@@ -2,6 +2,7 @@
 // Project list stored in localStorage; audio/results stored in OPFS.
 
 import { deleteProjectFiles } from '$lib/storage/opfs';
+import { defaultCrossoverForNewProject } from './presets.svelte';
 
 export type ProjectMeta = {
 	id: string;
@@ -38,6 +39,10 @@ export function refreshProjectList(): void {
 }
 
 export function createProject(name: string): ProjectMeta {
+	// Carry over the crossovers you were last working with — starting from the
+	// bare defaults every time is never what you want.
+	const inherited = defaultCrossoverForNewProject(projects.list);
+
 	const project: ProjectMeta = {
 		id: crypto.randomUUID(),
 		name: name.trim() || 'Untitled Project',
@@ -48,6 +53,13 @@ export function createProject(name: string): ProjectMeta {
 	};
 	projects.list.push(project);
 	persistProjectList(projects.list);
+
+	if (inherited) {
+		try {
+			localStorage.setItem(`malm_project_${project.id}_options`, JSON.stringify(inherited));
+		} catch {}
+	}
+
 	return project;
 }
 

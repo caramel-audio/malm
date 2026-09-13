@@ -19,6 +19,7 @@ import {
  *   SHOT_VIEWPORT  WxH, e.g. 390x844 (default project viewport)
  *   SHOT_SEED      'files' seeds a project with two tracks; 'analysis' also runs analysis
  *   SHOT_SPLASH    set to show the first-visit splash instead of suppressing it
+ *   SHOT_CLICK     accessible name of a button to click before the shot (e.g. to open a modal)
  *   SHOT_OUT       output path (default e2e/.shots/shot.png)
  */
 test('screenshot', async ({ page }) => {
@@ -37,9 +38,7 @@ test('screenshot', async ({ page }) => {
 
 	if (process.env.SHOT_SEED) {
 		const id = await createProject(page, 'Screenshot Project');
-		// sequential: parallel saves race on the OPFS manifest and can drop a file
-		await uploadFiles(page, SHORT_WAV);
-		await uploadFiles(page, SHORT_WAV2);
+		await uploadFiles(page, SHORT_WAV, SHORT_WAV2);
 		if (process.env.SHOT_SEED === 'analysis') {
 			await runAnalysis(page);
 			await page.waitForTimeout(1000); // let the debounced results save hit OPFS before reload
@@ -49,6 +48,9 @@ test('screenshot', async ({ page }) => {
 
 	await page.goto(route);
 	await page.waitForLoadState('networkidle');
+	if (process.env.SHOT_CLICK) {
+		await page.getByRole('button', { name: process.env.SHOT_CLICK }).first().click();
+	}
 	await page.waitForTimeout(500); // let plots/fonts settle
 	await page.screenshot({ path: process.env.SHOT_OUT ?? 'e2e/.shots/shot.png', fullPage: true });
 });

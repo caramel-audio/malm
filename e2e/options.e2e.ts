@@ -61,6 +61,55 @@ test.describe('crossover options', () => {
 		);
 	});
 
+	test('save a crossover and load it back after changing it', async ({ page }) => {
+		await page.getByRole('button', { name: 'Remove 200 Hz' }).click();
+		await page.getByRole('button', { name: 'BW 12 dB/oct' }).click();
+		await page.getByRole('button', { name: 'Save', exact: true }).click();
+		await page.getByPlaceholder('Crossover name').fill('My split');
+		await page.getByRole('button', { name: 'Save', exact: true }).last().click();
+
+		// change everything, then load the preset back
+		await page.getByRole('button', { name: 'Reset' }).click();
+		await expect(freqInputs(page)).toHaveCount(2);
+		await page.getByRole('button', { name: 'Load' }).click();
+		await page.getByRole('button', { name: /^My split/ }).click();
+		await expect(freqInputs(page)).toHaveCount(1);
+		await expect(freqInputs(page).nth(0)).toHaveValue('2000');
+		await expect(page.getByRole('button', { name: 'BW 12 dB/oct' })).toHaveAttribute(
+			'aria-pressed',
+			'true'
+		);
+	});
+
+	test('loads crossovers from another project', async ({ page }) => {
+		// project A keeps a single 5000 Hz split
+		await page.getByRole('button', { name: 'Remove 200 Hz' }).click();
+		const first = freqInputs(page).nth(0);
+		await first.fill('5000');
+		await first.press('Enter');
+		await page.waitForTimeout(500); // > 300ms save debounce
+
+		await createProject(page, 'Project B');
+		await page.getByRole('button', { name: 'Load' }).click();
+		await page.getByRole('button', { name: /Test Project/ }).click();
+		await expect(freqInputs(page)).toHaveCount(1);
+		await expect(freqInputs(page).nth(0)).toHaveValue('5000');
+	});
+
+	test('a new project inherits the last project crossovers', async ({ page }) => {
+		await page.getByRole('button', { name: 'Remove 2000 Hz' }).click();
+		await page.getByRole('button', { name: 'BW 48 dB/oct' }).click();
+		await page.waitForTimeout(500); // > 300ms save debounce
+
+		await createProject(page, 'Inheritor');
+		await expect(freqInputs(page)).toHaveCount(1);
+		await expect(freqInputs(page).nth(0)).toHaveValue('200');
+		await expect(page.getByRole('button', { name: 'BW 48 dB/oct' })).toHaveAttribute(
+			'aria-pressed',
+			'true'
+		);
+	});
+
 	test('options persist across reload', async ({ page }) => {
 		await page.getByRole('button', { name: 'Remove 200 Hz' }).click();
 		await expect(freqInputs(page)).toHaveCount(1);
