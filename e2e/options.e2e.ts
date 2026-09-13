@@ -81,6 +81,32 @@ test.describe('crossover options', () => {
 		);
 	});
 
+	test('saving twice under one name overwrites, and delete removes it', async ({ page }) => {
+		await page.getByRole('button', { name: 'Save', exact: true }).click();
+		await page.getByPlaceholder('Crossover name').fill('Dupe');
+		await page.getByRole('button', { name: 'Save', exact: true }).last().click();
+
+		await page.getByRole('button', { name: 'Remove 200 Hz' }).click();
+		await page.getByRole('button', { name: 'Save', exact: true }).click();
+		await page.getByPlaceholder('Crossover name').fill('Dupe');
+		await page.getByRole('button', { name: 'Save', exact: true }).last().click();
+
+		await page.getByRole('button', { name: 'Load' }).click();
+		await expect(page.getByRole('button', { name: /^Dupe/ })).toHaveCount(1);
+		await expect(page.getByRole('button', { name: /^Dupe/ })).toContainText('2000 Hz');
+
+		await page.getByRole('button', { name: 'Delete Dupe' }).click();
+		await expect(page.getByRole('button', { name: /^Dupe/ })).toHaveCount(0);
+		await expect(page.getByText('No saved crossovers yet.')).toBeVisible();
+	});
+
+	test('an unnamed preset still saves under a fallback name', async ({ page }) => {
+		await page.getByRole('button', { name: 'Save', exact: true }).click();
+		await page.getByRole('button', { name: 'Save', exact: true }).last().click();
+		await page.getByRole('button', { name: 'Load' }).click();
+		await expect(page.getByRole('button', { name: /^Untitled/ })).toHaveCount(1);
+	});
+
 	test('loads crossovers from another project', async ({ page }) => {
 		// project A keeps a single 5000 Hz split
 		await page.getByRole('button', { name: 'Remove 200 Hz' }).click();

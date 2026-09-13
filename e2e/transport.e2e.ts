@@ -1,5 +1,12 @@
 import { test, expect } from '@playwright/test';
-import { skipSplash, createProject, seedProject, runAnalysis, SHORT_WAV } from './helpers';
+import {
+	skipSplash,
+	createProject,
+	seedProject,
+	runAnalysis,
+	SHORT_WAV,
+	TINY_WAV
+} from './helpers';
 
 // Playwright's WebKit has no working OPFS (navigator.storage.getDirectory throws
 // UnknownError), so every project page fails to load — nothing here can run.
@@ -80,6 +87,58 @@ test.describe('transport bar', () => {
 		await expect(page.locator('div.border-b button:has(svg path[d^="M5.25 5.653"])')).toHaveCount(
 			0
 		);
+	});
+
+	test('playback advances steadily once started', async ({ page }) => {
+		// Regression: the band/slope effect used to read playback.currentTime as a
+		// tracked dep, so it refired every animation frame, rebuilding the filter
+		// graph and re-seeking — playback crawled.
+		await seedProject(page, ['pinknoise-wav16-44k-stereo-60s.wav']);
+		await bar(page).getByRole('button', { name: 'Play' }).click();
+		await page.waitForTimeout(2500);
+		await expect(bar(page).getByRole('button', { name: 'Pause' })).toBeVisible();
+		const elapsed = await bar(page).getByTestId('transport-time').textContent();
+		const seconds = Number(elapsed!.split('/')[0].trim().split(':')[1]);
+		expect(seconds).toBeGreaterThanOrEqual(2);
+	});
+
+	test('switching band while playing keeps playing from the same spot', async ({ page }) => {
+		test.slow();
+		await seedProject(page, ['pinknoise-wav16-44k-stereo-60s.wav']);
+		await runAnalysis(page);
+		await bar(page).getByRole('button', { name: 'Play' }).click();
+		await bar(page).getByRole('button', { name: 'Forward 10 seconds' }).click();
+		await page.getByRole('button', { name: '0–200 Hz' }).first().click();
+		await expect(bar(page).getByRole('button', { name: 'Pause' })).toBeVisible();
+		// still somewhere after the 10 s mark, not restarted from zero
+		await expect(bar(page).getByTestId('transport-time')).toContainText(/0:1[0-9]|0:2[0-9]/);
+	});
+
+	test('a finished track without repeat returns to a stopped transport', async ({ page }) => {
+		await seedProject(page, [TINY_WAV]);
+		await bar(page).getByRole('button', { name: 'Play' }).click();
+		await expect(bar(page).getByRole('button', { name: 'Play' })).toBeVisible({ timeout: 10_000 });
+		await expect(bar(page).getByTestId('transport-time')).toContainText('0:00 / 0:00');
+	});
+
+	test('seeking past the end does not break the transport', async ({ page }) => {
+		await seedProject(page, [TINY_WAV]);
+		await bar(page).getByRole('button', { name: 'Play' }).click();
+		for (let i = 0; i < 3; i++) {
+			await bar(page).getByRole('button', { name: 'Forward 10 seconds' }).click();
+		}
+		await bar(page).getByRole('button', { name: 'Back to start' }).click();
+		await expect(bar(page).getByTestId('transport-time')).toContainText('0:00');
+	});
+
+	test('transport controls do nothing harmful with no tracks loaded', async ({ page }) => {
+		await skipSplash(page);
+		await createProject(page);
+		await bar(page).getByRole('button', { name: 'Play' }).click();
+		await bar(page).getByRole('button', { name: 'Forward 10 seconds' }).click();
+		await page.locator('body').press(' ');
+		await expect(bar(page)).toContainText('No track');
+		await expect(bar(page).getByRole('button', { name: 'Play' })).toBeVisible();
 	});
 
 	test('repeat restarts the track at the end', async ({ page }) => {

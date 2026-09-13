@@ -50,6 +50,51 @@ test.describe('pinned track', () => {
 		expect(after.y).toBe(before.y);
 	});
 
+	test('dragging still moves the right row while a track is pinned', async ({ page }) => {
+		// Display order differs from files.list order once something is pinned, so
+		// the drag handlers work on mapped indices — this is what checks the map.
+		await seedProject(page, [SHORT_WAV, SHORT_WAV2, TINY_WAV]);
+		await page.getByRole('button', { name: /^Pin sine440-wav16-44k-mono/ }).click();
+		await expect(row(page, 0)).toContainText('sine440-wav16-44k-mono');
+
+		// drag the displayed row 1 (stereo sine) onto row 2 (pinknoise)
+		await page.evaluate(() => {
+			const rows = document.querySelectorAll('ul li');
+			const dt = new DataTransfer();
+			rows[1].dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: dt }));
+			rows[2].dispatchEvent(new DragEvent('dragover', { bubbles: true, dataTransfer: dt }));
+			rows[2].dispatchEvent(new DragEvent('drop', { bubbles: true, dataTransfer: dt }));
+			rows[1].dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer: dt }));
+		});
+
+		await expect(row(page, 0)).toContainText('sine440-wav16-44k-mono'); // pin unaffected
+		await expect(row(page, 1)).toContainText('pinknoise');
+		await expect(row(page, 2)).toContainText('sine440-wav16-44k-stereo');
+	});
+
+	test('removing the pinned track leaves the list usable', async ({ page }) => {
+		await seedProject(page, [SHORT_WAV, SHORT_WAV2]);
+		await page.getByRole('button', { name: /^Pin pinknoise/ }).click();
+		await expect(row(page, 0)).toContainText('pinknoise');
+		await page.getByRole('button', { name: /^Remove pinknoise/ }).click();
+		await expect(page.locator('ul li')).toHaveCount(1);
+		await expect(row(page, 0)).toContainText('sine440');
+		// the dangling pin must not pin anything else
+		await expect(page.getByRole('button', { name: /^Unpin/ })).toHaveCount(0);
+	});
+
+	test('the pinned plot is excluded from the scrolling list', async ({ page }) => {
+		test.slow();
+		await seedProject(page, [SHORT_WAV, SHORT_WAV2]);
+		await page.getByRole('button', { name: /^Pin pinknoise/ }).click();
+		await runAnalysis(page);
+		// uppercase is CSS only — the text node stays lowercase
+		await expect(page.getByTestId('pinned-plot')).toContainText('pinknoise');
+		// exactly one plot per file overall: the pinned one is not drawn twice
+		await expect(page.getByTestId('plot')).toHaveCount(2);
+		await expect(page.getByTestId('plot-scroll').getByTestId('plot')).toHaveCount(1);
+	});
+
 	test('the pin survives a reload', async ({ page }) => {
 		await seedProject(page, [SHORT_WAV, SHORT_WAV2]);
 		await page.getByRole('button', { name: /^Pin pinknoise/ }).click();

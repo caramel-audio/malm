@@ -100,6 +100,85 @@ test.describe('analysis', () => {
 		await expect(page.getByTestId('busy-overlay')).toHaveCount(0);
 	});
 
+	test('removing a file then re-analyzing drops its plot', async ({ page }) => {
+		test.slow();
+		await seedProject(page, [SHORT_WAV, SHORT_WAV2]);
+		await runAnalysis(page);
+		await expect(page.getByTestId('plot')).toHaveCount(2);
+
+		await page.getByRole('link', { name: 'Setup' }).first().click();
+		await page.getByRole('button', { name: /^Remove sine440/ }).click();
+		await runAnalysis(page);
+
+		await expect(page.getByTestId('plot')).toHaveCount(1);
+		await expect(page.getByText('pinknoise-wav16-44k-stereo-5s')).toBeVisible();
+	});
+
+	test('cancelling analysis leaves the project analyzable', async ({ page }) => {
+		test.slow();
+		await seedProject(page, ['pinknoise-wav16-44k-stereo-60s.wav']);
+		await page.getByRole('button', { name: 'Analyze' }).click();
+		await page.getByRole('button', { name: 'Cancel' }).click();
+		await expect(page.getByRole('button', { name: 'Cancel' })).toHaveCount(0);
+		await expect(page).toHaveURL(/\/setup$/);
+		await expect(page.getByRole('button', { name: 'Analyze' })).toBeEnabled();
+		// and a second attempt still works
+		await runAnalysis(page);
+		await expect(page.getByText(/LUFS-I:/)).toBeVisible();
+	});
+
+	test('the busy overlay is shown while plots redraw', async ({ page }) => {
+		test.slow();
+		await seedProject(page, [SHORT_WAV]);
+		await runAnalysis(page);
+
+		// The overlay lives only for the blocking redraw, so watch for it with an
+		// observer instead of racing it with a poll.
+		await page.evaluate(() => {
+			(window as unknown as { __sawOverlay: boolean }).__sawOverlay = false;
+			new MutationObserver(() => {
+				if (document.querySelector('[data-testid="busy-overlay"]')) {
+					(window as unknown as { __sawOverlay: boolean }).__sawOverlay = true;
+				}
+			}).observe(document.body, { childList: true, subtree: true });
+		});
+
+		await page.getByRole('button', { name: '0–200 Hz' }).first().click();
+		await expect(page.getByTestId('plot').first()).toBeVisible();
+		expect(
+			await page.evaluate(() => (window as unknown as { __sawOverlay: boolean }).__sawOverlay)
+		).toBe(true);
+		await expect(page.getByTestId('busy-overlay')).toHaveCount(0);
+	});
+
+	test('a steeper slope changes the measured band loudness', async ({ page }) => {
+		test.slow();
+		const readBandLufs = async () => {
+			await page.getByRole('button', { name: '0–200 Hz' }).first().click();
+			await page
+				.getByTestId('plot')
+				.first()
+				.hover({ position: { x: 250, y: 80 } });
+			return page
+				.getByRole('region', { name: 'Transport' })
+				.getByTestId('transport-lufs-m')
+				.textContent();
+		};
+
+		await seedProject(page, ['whitenoise-wav16-48k-mono-5s.wav']);
+		await runAnalysis(page);
+		const lr24 = await readBandLufs();
+		expect(lr24).not.toBe('—');
+
+		await page.getByRole('link', { name: 'Setup' }).first().click();
+		await page.getByRole('button', { name: 'BW 12 dB/oct' }).click();
+		await runAnalysis(page);
+		const bw12 = await readBandLufs();
+
+		// A 12 dB/oct low band leaks far more broadband noise than a 24 dB/oct one
+		expect(Number(bw12)).toBeGreaterThan(Number(lr24));
+	});
+
 	test('normalize to quietest shows gain offset', async ({ page }) => {
 		test.slow();
 		await seedProject(page, [SHORT_WAV, SHORT_WAV2]);

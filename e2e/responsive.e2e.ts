@@ -30,6 +30,16 @@ test('setup page: nav tabs usable, no overflow', async ({ page }) => {
 	await expect(page.getByText('Press Analyze to start')).toBeVisible();
 });
 
+test('transport bar is usable at this viewport', async ({ page }) => {
+	await seedProject(page, [TINY_WAV]);
+	const bar = page.getByRole('region', { name: 'Transport' });
+	await expect(bar).toBeVisible();
+	await bar.getByRole('button', { name: 'Play' }).click();
+	await expect(bar.getByRole('button', { name: 'Pause' })).toBeVisible();
+	await expect(bar.getByTestId('transport-lufs-m')).toBeVisible();
+	await noHorizontalOverflow(page);
+});
+
 test('upload, analyze and view results, no overflow', async ({ page }) => {
 	test.slow();
 	const isMobile = (page.viewportSize()?.width ?? 9999) < 640;

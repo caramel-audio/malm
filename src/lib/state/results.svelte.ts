@@ -82,6 +82,8 @@ export function nearestValue(data: [number, number][], timeMs: number): number |
 		if (data[mid][0] < timeMs) lo = mid + 1;
 		else hi = mid;
 	}
+	// `<=` so an exact midpoint takes the earlier sample, as the linear scan
+	// this replaced did.
 	const prev = data[Math.max(0, lo - 1)];
-	return Math.abs(prev[0] - timeMs) < Math.abs(data[lo][0] - timeMs) ? prev[1] : data[lo][1];
+	return Math.abs(prev[0] - timeMs) <= Math.abs(data[lo][0] - timeMs) ? prev[1] : data[lo][1];
 }

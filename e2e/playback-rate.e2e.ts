@@ -1,6 +1,10 @@
 import { test, expect } from '@playwright/test';
 import { skipSplash, createProject, uploadFiles, runAnalysis } from './helpers';
 
+// Playwright's WebKit has no working OPFS (navigator.storage.getDirectory throws
+// UnknownError), so every project page fails to load — nothing here can run.
+test.skip(({ browserName }) => browserName === 'webkit', 'OPFS unavailable in Playwright WebKit');
+
 /**
  * Guards against reapplyBand() re-entering on every animation frame. It reads
  * playback.currentTime, which ticks per frame, so calling it from an $effect

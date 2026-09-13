@@ -10,10 +10,10 @@ export function formatTime(seconds: number): string {
 
 const LUFS_STOPS: [number, string][] = [
 	[-35, '#3b82f6'],
-	[-30, '#3b82f6'],
-	[-25, '#22c55e'],
-	[-20, '#eab308'],
-	[-15, '#ef4444']
+	[-28, '#3b82f6'],
+	[-20, '#22c55e'],
+	[-12, '#eab308'],
+	[-8, '#ef4444']
 ];
 
 /** Blue (quiet) → red (loud). Shared by the plot line and the transport readout. */
