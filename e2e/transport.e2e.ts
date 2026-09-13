@@ -141,6 +141,28 @@ test.describe('transport bar', () => {
 		await expect(bar(page).getByRole('button', { name: 'Play' })).toBeVisible();
 	});
 
+	test('leaving the project stops playback', async ({ page }) => {
+		// The <audio> element lives outside the DOM, so stash it on first play.
+		// Navigation to the hub is client-side, so the reference survives.
+		await page.addInitScript(() => {
+			const play = HTMLMediaElement.prototype.play;
+			HTMLMediaElement.prototype.play = function (this: HTMLMediaElement) {
+				(window as unknown as { __el: HTMLMediaElement }).__el = this;
+				return play.call(this);
+			};
+		});
+		await seedProject(page, ['pinknoise-wav16-44k-stereo-60s.wav']);
+		await bar(page).getByRole('button', { name: 'Play' }).click();
+		await expect(bar(page).getByRole('button', { name: 'Pause' })).toBeVisible();
+
+		await page.getByRole('link', { name: 'Projects' }).first().click();
+		await page.waitForURL(/\/projects$/);
+		await expect(bar(page)).toHaveCount(0); // no transport bar on the hub
+		await expect
+			.poll(() => page.evaluate(() => (window as unknown as { __el: HTMLMediaElement }).__el.paused))
+			.toBe(true);
+	});
+
 	test('repeat restarts the track at the end', async ({ page }) => {
 		await seedProject(page, ['sine440-wav16-44k-mono-0.5s.wav']);
 		await bar(page).getByRole('button', { name: 'Repeat' }).click();

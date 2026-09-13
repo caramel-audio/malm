@@ -13,6 +13,7 @@
 	import { updateProjectMeta } from '$lib/state/project.svelte';
 	import { loadAudioFiles, loadResults, saveResults } from '$lib/storage/opfs';
 	import { toggle } from '$lib/audio/transport.svelte';
+	import { stop } from '$lib/audio/playback.svelte';
 	import TransportBar from '$lib/components/TransportBar.svelte';
 	import BusyOverlay from '$lib/components/BusyOverlay.svelte';
 
@@ -43,6 +44,9 @@
 		loadProject(id);
 
 		return () => {
+			// Leaving the project takes the transport bar with it — playback must
+			// not keep running somewhere the user can no longer reach it.
+			stop();
 			setCurrentProjectId(null);
 			for (const f of files.list) {
 				if (f.coverUrl) URL.revokeObjectURL(f.coverUrl);
