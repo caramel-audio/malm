@@ -22,29 +22,6 @@ test.describe('splash screen', () => {
 	});
 });
 
-test.describe('storage', () => {
-	test('the protect button reports what the browser decided', async ({ page }) => {
-		await skipSplash(page);
-		await page.goto('/projects');
-		const protect = page.getByTestId('storage-protect');
-		const state = page.getByTestId('storage-state');
-		// the bar only appears once the async quota estimate resolves
-		await expect(protect.or(state)).toBeVisible();
-		// already-protected browsers show the state instead of the button
-		if ((await protect.count()) === 0) {
-			await expect(state).toHaveText('Protected');
-			return;
-		}
-		await protect.click();
-		const outcome = page.getByTestId('storage-outcome');
-		await expect(outcome).toBeVisible();
-		// Granted, declined, or still waiting on Firefox's permission prompt —
-		// every branch has to be clear that the quota itself cannot be raised.
-		// (regex matching does not normalize the wrapped source text)
-		await expect(outcome).toContainText(/no\s+site\s+can\s+raise/);
-	});
-});
-
 test.describe('project hub', () => {
 	test.beforeEach(async ({ page }) => skipSplash(page));
 

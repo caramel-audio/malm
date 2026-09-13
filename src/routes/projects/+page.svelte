@@ -1,11 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { projects, createProject, deleteProject, renameProject } from '$lib/state/project.svelte';
-	import {
-		getStorageEstimate,
-		isStoragePersisted,
-		requestPersistentStorage
-	} from '$lib/storage/opfs';
+	import { getStorageEstimate, isStoragePersisted } from '$lib/storage/opfs';
 	import { formatBytes } from '$lib/format';
 	import type { ProjectMeta } from '$lib/state/project.svelte';
 	import { onMount, tick } from 'svelte';
@@ -31,20 +27,6 @@
 	}
 
 	onMount(refreshStorage);
-
-	// No web API can raise the quota — it is a share of free disk that the browser
-	// sets. persist() only asks it not to evict what is already stored: Chrome
-	// decides silently from how much you use the app, Firefox shows a permission
-	// prompt and leaves the promise pending until it is answered — possibly
-	// forever. Hence the explicit "asking" state: without it the button looks
-	// dead on Firefox.
-	let persistState = $state<'idle' | 'asking' | 'granted' | 'denied'>('idle');
-
-	async function handlePersist() {
-		persistState = 'asking';
-		persistState = (await requestPersistentStorage()) ? 'granted' : 'denied';
-		await refreshStorage();
-	}
 
 	function formatRelativeTime(ts: number): string {
 		const diff = Date.now() - ts;
@@ -224,35 +206,8 @@
 					title="The browser will not evict your projects to reclaim space."
 					data-testid="storage-state">Protected</span
 				>
-			{:else}
-				<button
-					onclick={handlePersist}
-					title="Asks the browser not to evict stored audio. The quota itself is a share of free disk and no site can raise it."
-					class="shrink-0 border border-gray-700 px-2 py-0.5 text-xs tracking-widest text-gray-400 uppercase transition-colors hover:border-secondary-400 hover:text-secondary-400"
-					data-testid="storage-protect">Protect</button
-				>
 			{/if}
 		</div>
-		{#if persistState !== 'idle'}
-			<div
-				class="shrink-0 border-t border-gray-800 px-4 pb-2 text-xs text-gray-500 sm:px-6"
-				data-testid="storage-outcome"
-			>
-				{#if persistState === 'asking'}
-					Waiting for the browser — Firefox asks for permission, so answer its prompt. This only
-					prevents eviction: the quota ({formatBytes(storageQuota)}) is a share of free disk that no
-					site can raise.
-				{:else if persistState === 'granted'}
-					Protected — the browser will keep your projects even when disk space runs low. This does
-					not add space: the quota ({formatBytes(storageQuota)}) is a share of free disk that no
-					site can raise. Free up disk space to get more.
-				{:else}
-					The browser declined. Chrome grants this on its own once you have used the app enough.
-					Either way it only prevents eviction: the quota ({formatBytes(storageQuota)}) is a share
-					of free disk that no site can raise.
-				{/if}
-			</div>
-		{/if}
 	{/if}
 </div>
 
