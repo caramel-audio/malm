@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
 	import { options, resetOptions } from '$lib/state/options.svelte';
-	import { SLOPES, SLOPE_LABELS } from '$lib/audio/filters';
+	import { SLOPES, SLOPE_LABELS, type Slope } from '$lib/audio/filters';
 	import { page } from '$app/stores';
 	import { projects } from '$lib/state/project.svelte';
 	import {
@@ -94,6 +94,24 @@
 	</div>
 </section>
 
+<!-- One row shape for both lists: name + slope on the left, the bar on the right -->
+{#snippet crossoverRow(name: string, frequencies: number[], slope: Slope, onpick: () => void)}
+	<button
+		class="flex w-full cursor-pointer items-center gap-4 px-4 py-2 pr-8 text-left hover:bg-gray-800/50"
+		onclick={onpick}
+	>
+		<span class="w-32 shrink-0">
+			<span class="block truncate text-xs text-gray-100">{name}</span>
+			<span class="mt-0.5 block text-[10px] tracking-wider text-gray-500 uppercase"
+				>{SLOPE_LABELS[slope]}</span
+			>
+		</span>
+		<span class="min-w-0 flex-1">
+			<CrossoverBar frequencies={[...frequencies]} readonly />
+		</span>
+	</button>
+{/snippet}
+
 {#if showSave}
 	<div
 		class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4"
@@ -153,21 +171,13 @@
 					<p class="px-4 pb-3 text-xs text-gray-600 italic">No saved crossovers yet.</p>
 				{:else}
 					{#each presets.list as preset (preset.name)}
-						<div class="flex items-center gap-3 border-t border-gray-800 px-4 py-2">
+						<div class="relative border-t border-gray-800">
+							{@render crossoverRow(preset.name, preset.frequencies, preset.slope, () => {
+								applyPreset(preset);
+								showLoad = false;
+							})}
 							<button
-								class="min-w-0 flex-1 cursor-pointer truncate text-left text-xs text-gray-100 hover:text-secondary-400"
-								onclick={() => {
-									applyPreset(preset);
-									showLoad = false;
-								}}
-							>
-								{preset.name}
-								<span class="ml-2 text-[10px] text-gray-500"
-									>{preset.frequencies.join(' · ')} Hz · {SLOPE_LABELS[preset.slope]}</span
-								>
-							</button>
-							<button
-								class="shrink-0 text-xs text-gray-600 hover:text-danger-400"
+								class="absolute top-1/2 right-2 -translate-y-1/2 text-xs text-gray-600 hover:text-danger-400"
 								onclick={() => deletePreset(preset.name)}
 								aria-label="Delete {preset.name}">✕</button
 							>
@@ -184,18 +194,12 @@
 					<p class="px-4 pb-3 text-xs text-gray-600 italic">No other project has crossovers.</p>
 				{:else}
 					{#each fromProjects as p (p.id)}
-						<button
-							class="flex w-full cursor-pointer items-center gap-4 border-t border-gray-800 px-4 py-2 text-left hover:bg-gray-800/50"
-							onclick={() => {
+						<div class="border-t border-gray-800">
+							{@render crossoverRow(p.name, p.frequencies, p.slope, () => {
 								applyPreset(p);
 								showLoad = false;
-							}}
-						>
-							<span class="w-32 shrink-0 truncate text-xs text-gray-100">{p.name}</span>
-							<div class="min-w-0 flex-1">
-								<CrossoverBar frequencies={p.frequencies} readonly />
-							</div>
-						</button>
+							})}
+						</div>
 					{/each}
 				{/if}
 			</div>

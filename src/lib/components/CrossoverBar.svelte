@@ -126,7 +126,10 @@
 	}
 </script>
 
-<div class="flex items-center gap-2 select-none">
+<div
+	class="flex items-center gap-2 select-none"
+	data-testid={readonly ? 'crossover-preview' : 'crossover-bar'}
+>
 	<span class="text-xs text-gray-600 tabular-nums">20</span>
 	<!-- Spectrum area: pills above, bar in the middle, pills below -->
 	<div class="relative flex-1 {readonly ? 'h-16' : 'h-24'}">

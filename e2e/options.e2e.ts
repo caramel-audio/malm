@@ -93,11 +93,35 @@ test.describe('crossover options', () => {
 
 		await page.getByRole('button', { name: 'Load' }).click();
 		await expect(page.getByRole('button', { name: /^Dupe/ })).toHaveCount(1);
-		await expect(page.getByRole('button', { name: /^Dupe/ })).toContainText('2000 Hz');
+		// the second save replaced the first: applying it gives the 2000 Hz split alone
+		await page.getByRole('button', { name: /^Dupe/ }).click();
+		await expect(freqInputs(page)).toHaveCount(1);
+		await expect(freqInputs(page).nth(0)).toHaveValue('2000');
 
+		await page.getByRole('button', { name: 'Load' }).click();
 		await page.getByRole('button', { name: 'Delete Dupe' }).click();
 		await expect(page.getByRole('button', { name: /^Dupe/ })).toHaveCount(0);
 		await expect(page.getByText('No saved crossovers yet.')).toBeVisible();
+	});
+
+	test('saved presets and project crossovers are both shown as name + slope + bar', async ({
+		page
+	}) => {
+		await page.getByRole('button', { name: 'BW 48 dB/oct' }).click();
+		await page.getByRole('button', { name: 'Save', exact: true }).click();
+		await page.getByPlaceholder('Crossover name').fill('Shown');
+		await page.getByRole('button', { name: 'Save', exact: true }).last().click();
+		await page.waitForTimeout(500); // > 300ms option save debounce
+		await createProject(page, 'Second');
+
+		await page.getByRole('button', { name: 'Load' }).click();
+		const saved = page.getByRole('button', { name: /^Shown/ });
+		await expect(saved).toContainText('BW 48 dB/oct');
+		await expect(saved.getByTestId('crossover-preview')).toBeVisible();
+
+		const fromProject = page.getByRole('button', { name: /^Test Project/ });
+		await expect(fromProject).toContainText('BW 48 dB/oct');
+		await expect(fromProject.getByTestId('crossover-preview')).toBeVisible();
 	});
 
 	test('an unnamed preset still saves under a fallback name', async ({ page }) => {
