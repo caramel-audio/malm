@@ -18,7 +18,7 @@
 
 {#if analysis.isAnalyzing}
 	<div>
-		<div class="mb-1.5 text-xs tracking-widest text-gray-500 uppercase">Analyzing</div>
+		<div class="mb-1.5 text-xs tracking-widest text-gray-500 uppercase">Malming</div>
 		<div class="h-1 border border-gray-700 bg-gray-900">
 			<div
 				class="h-full bg-secondary-400 transition-all"
