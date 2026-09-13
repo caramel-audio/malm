@@ -33,13 +33,16 @@
 	onMount(refreshStorage);
 
 	// No web API can raise the quota — it is a share of free disk that the browser
-	// sets. persist() only asks it not to evict what is already stored: Firefox
-	// prompts, Chrome decides silently from how much you use the app. Either way
-	// the answer is worth showing, so the button never looks like a no-op.
-	let persistOutcome = $state<'granted' | 'denied' | null>(null);
+	// sets. persist() only asks it not to evict what is already stored: Chrome
+	// decides silently from how much you use the app, Firefox shows a permission
+	// prompt and leaves the promise pending until it is answered — possibly
+	// forever. Hence the explicit "asking" state: without it the button looks
+	// dead on Firefox.
+	let persistState = $state<'idle' | 'asking' | 'granted' | 'denied'>('idle');
 
 	async function handlePersist() {
-		persistOutcome = (await requestPersistentStorage()) ? 'granted' : 'denied';
+		persistState = 'asking';
+		persistState = (await requestPersistentStorage()) ? 'granted' : 'denied';
 		await refreshStorage();
 	}
 
@@ -230,20 +233,23 @@
 				>
 			{/if}
 		</div>
-		{#if persistOutcome}
+		{#if persistState !== 'idle'}
 			<div
 				class="shrink-0 border-t border-gray-800 px-4 pb-2 text-xs text-gray-500 sm:px-6"
 				data-testid="storage-outcome"
 			>
-				{#if persistOutcome === 'granted'}
+				{#if persistState === 'asking'}
+					Waiting for the browser — Firefox asks for permission, so answer its prompt. This only
+					prevents eviction: the quota ({formatBytes(storageQuota)}) is a share of free disk that no
+					site can raise.
+				{:else if persistState === 'granted'}
 					Protected — the browser will keep your projects even when disk space runs low. This does
-					not add space: the quota ({formatBytes(storageQuota)}) is a share of free disk, and no
-					site can raise it. Free disk space to get more.
+					not add space: the quota ({formatBytes(storageQuota)}) is a share of free disk that no
+					site can raise. Free up disk space to get more.
 				{:else}
-					The browser declined. Chrome grants this automatically once you have used the app enough;
-					Firefox asks. Either way it only prevents eviction — the quota ({formatBytes(
-						storageQuota
-					)}) is a share of free disk that no site can raise.
+					The browser declined. Chrome grants this on its own once you have used the app enough.
+					Either way it only prevents eviction: the quota ({formatBytes(storageQuota)}) is a share
+					of free disk that no site can raise.
 				{/if}
 			</div>
 		{/if}

@@ -38,8 +38,10 @@ test.describe('storage', () => {
 		await protect.click();
 		const outcome = page.getByTestId('storage-outcome');
 		await expect(outcome).toBeVisible();
-		// whichever way it went, it must say the quota cannot be raised
-		await expect(outcome).toContainText(/no site can raise/);
+		// Granted, declined, or still waiting on Firefox's permission prompt —
+		// every branch has to be clear that the quota itself cannot be raised.
+		// (regex matching does not normalize the wrapped source text)
+		await expect(outcome).toContainText(/no\s+site\s+can\s+raise/);
 	});
 });
 
