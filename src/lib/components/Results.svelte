@@ -14,12 +14,19 @@
 		}
 	});
 
-	// Mono-only projects (and results from before balance existed) have nothing to
-	// compare, so the button stays out of the way.
-	const hasBalance = $derived(results.data.some((r) => r.bands.some((b) => b.balance?.length)));
+	const STEREO_VIEWS = new Set(['balance', 'correlation']);
+
+	// Mono-only projects (and results from before the stereo views existed) have
+	// nothing to compare, so the buttons stay out of the way.
+	const hasStereo = $derived(results.data.some((r) => r.bands.some((b) => b.balance?.length)));
+	const hasCorrelation = $derived(
+		results.data.some((r) => r.bands.some((b) => b.correlation?.length))
+	);
 
 	$effect(() => {
-		if (results.data.length > 0 && !hasBalance && options.loudnessType === 'balance') {
+		if (results.data.length === 0) return;
+		if (!hasStereo && options.loudnessType === 'balance') options.loudnessType = 'momentary';
+		if (!hasCorrelation && options.loudnessType === 'correlation') {
 			options.loudnessType = 'momentary';
 		}
 	});
@@ -118,7 +125,7 @@
 					? 'bg-gray-800 text-gray-100'
 					: 'text-gray-500 hover:bg-gray-900 hover:text-gray-300'}">Short-term</button
 			>
-			{#if hasBalance}
+			{#if hasStereo}
 				<button
 					onclick={() => (options.loudnessType = 'balance')}
 					class="border-t border-gray-700 px-3 py-1.5 text-left text-xs tracking-widest whitespace-nowrap uppercase transition-colors
@@ -127,14 +134,23 @@
 						: 'text-gray-500 hover:bg-gray-900 hover:text-gray-300'}">L/R balance</button
 				>
 			{/if}
+			{#if hasCorrelation}
+				<button
+					onclick={() => (options.loudnessType = 'correlation')}
+					class="border-t border-gray-700 px-3 py-1.5 text-left text-xs tracking-widest whitespace-nowrap uppercase transition-colors
+						{options.loudnessType === 'correlation'
+						? 'bg-gray-800 text-gray-100'
+						: 'text-gray-500 hover:bg-gray-900 hover:text-gray-300'}">Correlation</button
+				>
+			{/if}
 		</div>
 	</div>
 {/snippet}
 
 {#snippet normalizeSelector()}
-	<!-- Balance is a difference between two channels of the same file; a per-file
-	     gain offset cancels out of it, so the control would do nothing. -->
-	{#if results.data.length > 1 && options.loudnessType !== 'balance'}
+	<!-- Both stereo views compare two channels of the same file; a per-file gain
+	     offset cancels out of them, so the control would do nothing. -->
+	{#if results.data.length > 1 && !STEREO_VIEWS.has(options.loudnessType)}
 		<div>
 			<div class="mb-1.5 text-xs tracking-widest text-gray-500 uppercase">Normalize</div>
 			<div class="flex flex-col border border-gray-700">

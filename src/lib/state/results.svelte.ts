@@ -17,6 +17,12 @@ export type BandResult = {
 	balance?: [number, number][];
 	// Same difference over the gated blocks behind `integrated`.
 	balanceIntegrated?: number;
+	// [timeMs, r] Pearson correlation of the two channels over the momentary
+	// window: +1 identical, 0 unrelated, -1 anti-phase (cancels in mono). Same
+	// stereo-only, silence-gated treatment as `balance`.
+	correlation?: [number, number][];
+	// Pooled over the gated blocks behind `integrated`.
+	correlationIntegrated?: number;
 };
 
 export type FileResult = {

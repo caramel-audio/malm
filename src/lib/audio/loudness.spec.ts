@@ -36,6 +36,8 @@ describe('LoudnessMeter', () => {
 		expect(ragged.peak).toEqual(whole.peak);
 		expect(ragged.momentary).toEqual(whole.momentary);
 		expect(ragged.shortTerm).toEqual(whole.shortTerm);
+		expect(ragged.balance).toEqual(whole.balance);
+		expect(ragged.correlation).toEqual(whole.correlation);
 	});
 
 	it('carries filter state across chunks for a band-limited measurement', () => {
@@ -89,6 +91,44 @@ describe('LoudnessMeter', () => {
 		// an infinite lean.
 		expect(r.balance).toEqual([]);
 		expect(r.balanceIntegrated).toBeUndefined();
+	});
+
+	it('reports +1 correlation for identical channels', () => {
+		const r = measure([left, right], fullBand, [left.length]);
+		expect(r.correlationIntegrated).toBeCloseTo(1, 6);
+		for (const [, v] of r.correlation!) expect(v).toBeCloseTo(1, 6);
+	});
+
+	it('reports -1 correlation for an inverted channel', () => {
+		const inverted = left.map((v) => -v) as Float32Array;
+		const r = measure([left, inverted], fullBand, [left.length]);
+		expect(r.correlationIntegrated).toBeCloseTo(-1, 6);
+		expect(r.correlation!.at(-1)![1]).toBeCloseTo(-1, 6);
+		// Polarity is not level: both channels are still just as loud, which is
+		// exactly why this defect is invisible to a loudness curve.
+		expect(r.balanceIntegrated).toBeCloseTo(0, 6);
+	});
+
+	it('still reports +1 when one channel is merely quieter', () => {
+		// Correlation is normalized, so a pure gain difference does not move it —
+		// that is balance's job, and the two views catch disjoint faults.
+		const quietRight = sine(10, 997, 0.05);
+		const r = measure([left, quietRight], fullBand, [left.length]);
+		expect(r.correlationIntegrated).toBeCloseTo(1, 6);
+		expect(r.balanceIntegrated).toBeCloseTo(6.02, 1);
+	});
+
+	it('reports near-zero correlation for unrelated channels', () => {
+		// Two sines far enough apart in frequency to be orthogonal over the window.
+		const other = sine(10, 311, 0.1);
+		const r = measure([left, other], fullBand, [left.length]);
+		expect(Math.abs(r.correlationIntegrated!)).toBeLessThan(0.1);
+	});
+
+	it('omits correlation for mono', () => {
+		const r = measure([left], fullBand, [left.length]);
+		expect(r.correlation).toBeUndefined();
+		expect(r.correlationIntegrated).toBeUndefined();
 	});
 
 	it('reports -Infinity when fed less than one 100 ms step', () => {

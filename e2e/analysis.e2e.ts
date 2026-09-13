@@ -8,7 +8,8 @@ import {
 	SHORT_WAV,
 	SHORT_WAV2,
 	TINY_WAV,
-	LOPSIDED_WAV
+	LOPSIDED_WAV,
+	ANTIPHASE_WAV
 } from './helpers';
 
 // Playwright's WebKit has no working OPFS (navigator.storage.getDirectory throws
@@ -32,17 +33,30 @@ test.describe('analysis', () => {
 		await runAnalysis(page);
 		await page.getByRole('button', { name: 'L/R balance' }).click();
 		// Right channel is at half amplitude, so left leads by 20*log10(2).
-		await expect(page.getByTestId('plot-balance')).toHaveText(/L\/R: \+6\.0 dB/);
+		await expect(page.getByTestId('plot-stereo')).toHaveText(/L\/R: \+6\.0 dB/);
 		// The balance axis replaces the LUFS one.
 		await expect(page.getByText(/LUFS-I:/)).toHaveCount(0);
 	});
 
-	test('balance button is hidden for mono-only results', async ({ page }) => {
+	test('correlation view catches an inverted channel', async ({ page }) => {
+		test.slow();
+		await seedProject(page, [ANTIPHASE_WAV, LOPSIDED_WAV]);
+		await runAnalysis(page);
+		await page.getByRole('button', { name: 'Correlation' }).click();
+		const values = page.getByTestId('plot-stereo');
+		// The inverted file reads -1; the merely lopsided one is still in phase, so
+		// it reads +1 — the two views catch different faults.
+		await expect(values.first()).toHaveText('r: -1.00');
+		await expect(values.last()).toHaveText('r: +1.00');
+	});
+
+	test('stereo view buttons are hidden for mono-only results', async ({ page }) => {
 		test.slow();
 		await seedProject(page, [TINY_WAV]);
 		await runAnalysis(page);
 		await expect(page.getByRole('button', { name: 'Short-term' })).toBeVisible();
 		await expect(page.getByRole('button', { name: 'L/R balance' })).toHaveCount(0);
+		await expect(page.getByRole('button', { name: 'Correlation' })).toHaveCount(0);
 	});
 
 	test('Analyze disabled without files', async ({ page }) => {

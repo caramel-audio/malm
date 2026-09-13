@@ -60,10 +60,15 @@ const ABS_GATE_MS = Math.pow(10, (-70 + 0.691) / 10);
  * EBU R128 gating (absolute gate at -70 LUFS, relative gate 10 dB below the
  * ungated mean) over 400 ms blocks. Gating decisions are made on the
  * channel-summed level; what comes back is the surviving mean square *per
- * channel*, so the integrated loudness and the L/R difference are both read off
- * exactly the same set of blocks. Null when everything was gated out.
+ * channel* plus the mean L·R product, so the integrated loudness, the L/R
+ * difference and the pooled correlation are all read off exactly the same set
+ * of blocks. Null when everything was gated out.
  */
-function gatedChannelMeans(chunkSS: Float64Array[], stepSamples: number): Float64Array | null {
+function gatedChannelMeans(
+	chunkSS: Float64Array[],
+	chunkLR: Float64Array | null,
+	stepSamples: number
+): { means: Float64Array; lr: number } | null {
 	const totalSteps = chunkSS[0].length;
 	const nCh = chunkSS.length;
 	const blockChunks = 4; // 400 ms blocks at 100 ms steps
@@ -72,11 +77,17 @@ function gatedChannelMeans(chunkSS: Float64Array[], stepSamples: number): Float6
 
 	const blockSum = new Float64Array(nBlocks); // channel-weighted, drives the gate
 	const blockCh = new Float64Array(nBlocks * nCh); // per channel, drives the balance
+	const blockLR = new Float64Array(nBlocks); // L·R, drives the correlation
 	const running = new Float64Array(nCh);
+	let runningLR = 0;
 	for (let step = 0; step < totalSteps; step++) {
 		for (let ch = 0; ch < nCh; ch++) {
 			running[ch] += chunkSS[ch][step];
 			if (step >= blockChunks) running[ch] -= chunkSS[ch][step - blockChunks];
+		}
+		if (chunkLR) {
+			runningLR += chunkLR[step];
+			if (step >= blockChunks) runningLR -= chunkLR[step - blockChunks];
 		}
 		if (step >= blockChunks - 1) {
 			const b = step - blockChunks + 1;
@@ -87,6 +98,7 @@ function gatedChannelMeans(chunkSS: Float64Array[], stepSamples: number): Float6
 				sum += (CHANNEL_GAINS[ch] ?? 1) * ms;
 			}
 			blockSum[b] = sum;
+			blockLR[b] = runningLR / (blockChunks * stepSamples);
 		}
 	}
 
@@ -102,20 +114,32 @@ function gatedChannelMeans(chunkSS: Float64Array[], stepSamples: number): Float6
 
 	const relThreshold = (total / count) * Math.pow(10, -10 / 10);
 	const means = new Float64Array(nCh);
+	let lr = 0;
 	let kept = 0;
 	for (let b = 0; b < nBlocks; b++) {
 		if (blockSum[b] < ABS_GATE_MS || blockSum[b] < relThreshold) continue;
 		kept++;
 		for (let ch = 0; ch < nCh; ch++) means[ch] += blockCh[b * nCh + ch];
+		lr += blockLR[b];
 	}
 	if (kept === 0) return null;
 	for (let ch = 0; ch < nCh; ch++) means[ch] /= kept;
-	return means;
+	return { means, lr: lr / kept };
 }
 
 /** dB by which left exceeds right, from two mean squares. Null if either is silent. */
 function balanceDb(l: number, r: number): number | null {
 	return l > 0 && r > 0 ? 10 * Math.log10(l / r) : null;
+}
+
+/**
+ * Pearson correlation of the two channels from their mean squares and their
+ * mean product. Null when either channel is silent — silence has no phase.
+ * Clamped: rounding can push a perfectly correlated pair a hair past ±1.
+ */
+function correlation(ll: number, rr: number, lr: number): number | null {
+	const denom = Math.sqrt(ll * rr);
+	return denom > 0 ? Math.max(-1, Math.min(1, lr / denom)) : null;
 }
 
 /**
@@ -130,14 +154,22 @@ export class LoudnessMeter {
 	private readonly bandStates: Float64Array[][];
 	private readonly kStates: Float64Array[][];
 
-	// Completed 100 ms steps: K-weighted sum-of-squares per channel, band peak per step
+	// Completed 100 ms steps: K-weighted sum-of-squares per channel, band peak per
+	// step, and the K-weighted L·R product per step (stereo only).
 	private readonly stepSS: number[][];
 	private readonly peak: [number, number][] = [];
+	private readonly stepLR: number[] = [];
+	private readonly stereo: boolean;
 
 	// Accumulators for the step currently being filled
 	private readonly accSS: Float64Array;
+	private accLR = 0;
 	private accPeak = 0;
 	private samplesIntoStep = 0;
+
+	// The channel loop is the inner one, so L and R are never both in hand.
+	// Scratch holds this sample's K-weighted value per channel.
+	private readonly kOut: Float64Array;
 
 	constructor(
 		sampleRate: number,
@@ -154,10 +186,13 @@ export class LoudnessMeter {
 		this.kStates = Array.from({ length: nCh }, () => this.kCoeffs.map(() => new Float64Array(2)));
 		this.stepSS = Array.from({ length: nCh }, () => []);
 		this.accSS = new Float64Array(nCh);
+		this.kOut = new Float64Array(nCh);
+		this.stereo = nCh >= 2;
 	}
 
 	feed(channels: Float32Array[]): void {
-		const { nCh, bandCoeffs, kCoeffs, bandStates, kStates, accSS, stepSamples } = this;
+		const { nCh, bandCoeffs, kCoeffs, bandStates, kStates, accSS, kOut, stereo, stepSamples } =
+			this;
 		const n = channels[0]?.length ?? 0;
 
 		for (let i = 0; i < n; i++) {
@@ -169,14 +204,24 @@ export class LoudnessMeter {
 				const abs = Math.abs(y);
 				if (abs > this.accPeak) this.accPeak = abs;
 				for (let s = 0; s < kCoeffs.length; s++) y = processSample(y, kCoeffs[s], ks[s]);
+				kOut[ch] = y;
 				accSS[ch] += y * y;
 			}
+			// Taken post-K so it pairs with the sum of squares above. K-weighting is
+			// the same filter on both channels, so the relative phase — the thing
+			// correlation is actually about — is untouched; what it does change is
+			// the frequency weighting, which keeps rumble from dominating the number.
+			if (stereo) this.accLR += kOut[0] * kOut[1];
 
 			if (++this.samplesIntoStep === stepSamples) {
 				const step = this.peak.length;
 				for (let ch = 0; ch < nCh; ch++) {
 					this.stepSS[ch].push(accSS[ch]);
 					accSS[ch] = 0;
+				}
+				if (stereo) {
+					this.stepLR.push(this.accLR);
+					this.accLR = 0;
 				}
 				this.peak.push([step * 100, 20 * Math.log10(Math.max(this.accPeak, 1e-10))]);
 				this.accPeak = 0;
@@ -201,7 +246,13 @@ export class LoudnessMeter {
 		// L/R difference over the short-term window — 400 ms is too jittery to read
 		// a fraction of a dB off. Only meaningful for stereo.
 		const balance: [number, number][] = [];
-		const stereo = nCh >= 2;
+		// Correlation runs on the momentary window instead: it is normalized, so it
+		// is far steadier than a loudness curve, and phase faults are usually
+		// transient — a 3 s window smears the one bad bar you are hunting for.
+		const correlationSeries: [number, number][] = [];
+		const stereo = this.stereo;
+		const chunkLR = stereo ? Float64Array.from(this.stepLR) : null;
+		let mRunningLR = 0;
 
 		for (let step = 0; step < totalSteps; step++) {
 			for (let ch = 0; ch < nCh; ch++) {
@@ -209,6 +260,10 @@ export class LoudnessMeter {
 				if (step >= momentaryChunks) mRunning[ch] -= chunkSS[ch][step - momentaryChunks];
 				stRunning[ch] += chunkSS[ch][step];
 				if (step >= shortTermChunks) stRunning[ch] -= chunkSS[ch][step - shortTermChunks];
+			}
+			if (chunkLR) {
+				mRunningLR += chunkLR[step];
+				if (step >= momentaryChunks) mRunningLR -= chunkLR[step - momentaryChunks];
 			}
 
 			const mChunks = Math.min(step + 1, momentaryChunks);
@@ -231,13 +286,19 @@ export class LoudnessMeter {
 				const db = balanceDb(stRunning[0] / denom, stRunning[1] / denom);
 				if (db !== null) balance.push([step * 100, db]);
 			}
+
+			if (chunkLR && mSum >= ABS_GATE_MS) {
+				const denom = mChunks * stepSamples;
+				const r = correlation(mRunning[0] / denom, mRunning[1] / denom, mRunningLR / denom);
+				if (r !== null) correlationSeries.push([step * 100, r]);
+			}
 		}
 
-		const means = totalSteps > 0 ? gatedChannelMeans(chunkSS, stepSamples) : null;
+		const gated = totalSteps > 0 ? gatedChannelMeans(chunkSS, chunkLR, stepSamples) : null;
 		let integrated = -Infinity;
-		if (means) {
+		if (gated) {
 			let sum = 0;
-			for (let ch = 0; ch < nCh; ch++) sum += (CHANNEL_GAINS[ch] ?? 1) * means[ch];
+			for (let ch = 0; ch < nCh; ch++) sum += (CHANNEL_GAINS[ch] ?? 1) * gated.means[ch];
 			integrated = toDb(sum);
 		}
 
@@ -249,7 +310,12 @@ export class LoudnessMeter {
 			...(stereo
 				? {
 						balance,
-						balanceIntegrated: (means && balanceDb(means[0], means[1])) ?? undefined
+						balanceIntegrated: (gated && balanceDb(gated.means[0], gated.means[1])) ?? undefined,
+						correlation: correlationSeries,
+						// Pooled over the gated blocks, not an average of the per-window
+						// values: a mean of ratios is not a correlation.
+						correlationIntegrated:
+							(gated && correlation(gated.means[0], gated.means[1], gated.lr)) ?? undefined
 					}
 				: {})
 		};

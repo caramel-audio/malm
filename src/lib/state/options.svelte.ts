@@ -5,8 +5,8 @@ import { SLOPES, type Slope } from '$lib/audio/filters';
 const DEFAULT_FREQUENCIES = [200, 2000];
 const DEFAULT_SLOPE: Slope = 'LR24';
 
-/** What the plots draw: a loudness curve, or the L/R difference. */
-export const LOUDNESS_TYPES = ['momentary', 'shortTerm', 'balance'] as const;
+/** What the plots draw: a loudness curve, or one of the two stereo views. */
+export const LOUDNESS_TYPES = ['momentary', 'shortTerm', 'balance', 'correlation'] as const;
 export type LoudnessType = (typeof LOUDNESS_TYPES)[number];
 
 export const options = $state({

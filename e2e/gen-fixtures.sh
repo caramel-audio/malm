@@ -25,6 +25,8 @@ gen silence-wav16-44k-stereo-5s.wav   -f lavfi -i "anullsrc=r=44100:cl=stereo" -
 gen sweep-wav16-48k-stereo-5s.wav     -f lavfi -i "aevalsrc='sin(2*PI*(20*t+((2000-20)/(2*5))*t*t))':d=5:s=48000" -ac 2 -c:a pcm_s16le
 # Right channel at half amplitude: a known +6.02 dB lean to the left, for the balance view.
 gen lopsided-wav16-44k-stereo-5s.wav  -f lavfi -i "anoisesrc=color=pink:duration=5" -af "pan=stereo|c0=c0|c1=0.5*c0" -ar 44100 -c:a pcm_s16le
+# Right channel inverted: correlation -1, equal levels, sums to silence in mono.
+gen antiphase-wav16-44k-stereo-5s.wav -f lavfi -i "anoisesrc=color=pink:duration=5" -af "pan=stereo|c0=c0|c1=-1*c0" -ar 44100 -c:a pcm_s16le
 
 gen sine440-flac-44k-stereo-5s.flac   -f lavfi -i "sine=frequency=440:duration=5" -ac 2 -ar 44100 -c:a flac
 gen sine440-flac-96k-stereo-5s.flac   -f lavfi -i "sine=frequency=440:duration=5" -ac 2 -ar 96000 -c:a flac
