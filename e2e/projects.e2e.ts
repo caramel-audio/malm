@@ -22,6 +22,27 @@ test.describe('splash screen', () => {
 	});
 });
 
+test.describe('storage', () => {
+	test('the protect button reports what the browser decided', async ({ page }) => {
+		await skipSplash(page);
+		await page.goto('/projects');
+		const protect = page.getByTestId('storage-protect');
+		const state = page.getByTestId('storage-state');
+		// the bar only appears once the async quota estimate resolves
+		await expect(protect.or(state)).toBeVisible();
+		// already-protected browsers show the state instead of the button
+		if ((await protect.count()) === 0) {
+			await expect(state).toHaveText('Protected');
+			return;
+		}
+		await protect.click();
+		const outcome = page.getByTestId('storage-outcome');
+		await expect(outcome).toBeVisible();
+		// whichever way it went, it must say the quota cannot be raised
+		await expect(outcome).toContainText(/no site can raise/);
+	});
+});
+
 test.describe('project hub', () => {
 	test.beforeEach(async ({ page }) => skipSplash(page));
 
