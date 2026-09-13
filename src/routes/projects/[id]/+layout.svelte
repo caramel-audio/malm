@@ -14,6 +14,7 @@
 	import { loadAudioFiles, loadResults, saveResults } from '$lib/storage/opfs';
 	import { toggle } from '$lib/audio/transport.svelte';
 	import TransportBar from '$lib/components/TransportBar.svelte';
+	import BusyOverlay from '$lib/components/BusyOverlay.svelte';
 
 	let { children } = $props();
 
@@ -159,13 +160,9 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div class="flex h-full min-h-0 flex-col">
-	<div class="flex min-h-0 flex-1 flex-col overflow-hidden">
+	<div class="relative flex min-h-0 flex-1 flex-col overflow-hidden">
 		{#if !isLoaded}
-			<div
-				class="flex h-full items-center justify-center py-24 text-xs tracking-widest text-gray-600 uppercase"
-			>
-				Loading…
-			</div>
+			<BusyOverlay label="Loading project" />
 		{:else if loadError}
 			<div class="flex h-full items-center justify-center py-24 text-xs text-danger-400">
 				{loadError}

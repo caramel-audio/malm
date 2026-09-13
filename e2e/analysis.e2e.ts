@@ -66,6 +66,8 @@ test.describe('analysis', () => {
 		await page.getByRole('button', { name: 'Short-term' }).first().click();
 		await expect(page.getByTestId('plot').first()).toBeVisible();
 		await expect(page.getByText(/LUFS-I:/)).toBeVisible();
+		// the busy overlay must clear once the redraw is done
+		await expect(page.getByTestId('busy-overlay')).toHaveCount(0);
 	});
 
 	test('normalize to quietest shows gain offset', async ({ page }) => {

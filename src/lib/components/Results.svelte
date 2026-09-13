@@ -3,6 +3,7 @@
 	import { results, lufsOffset, quietestFileId } from '$lib/state/results.svelte';
 	import { options } from '$lib/state/options.svelte';
 	import Plot from './Plot.svelte';
+	import BusyOverlay from './BusyOverlay.svelte';
 
 	const bands = $derived(results.data[0]?.bands ?? [{ label: 'full' }]);
 
@@ -14,6 +15,38 @@
 	});
 
 	const quietestFile = $derived(files.list.find((f) => f.id === quietestFileId()) ?? null);
+
+	// Redrawing every plot is synchronous and takes seconds with many tracks, so
+	// the new settings are only handed to the plots once the browser has painted
+	// the overlay — otherwise the page just freezes with no explanation.
+	let busy = $state(false);
+	let applied = $state({
+		band: options.selectedBand,
+		loudnessType: options.loudnessType,
+		normalize: options.normalizeToQuietest
+	});
+
+	$effect(() => {
+		const next = {
+			band: options.selectedBand,
+			loudnessType: options.loudnessType,
+			normalize: options.normalizeToQuietest
+		};
+		if (
+			next.band === applied.band &&
+			next.loudnessType === applied.loudnessType &&
+			next.normalize === applied.normalize
+		) {
+			return;
+		}
+		busy = true;
+		requestAnimationFrame(() =>
+			requestAnimationFrame(() => {
+				applied = next;
+				busy = false;
+			})
+		);
+	});
 
 	function bandLabel(label: string): string {
 		return label === 'full' ? 'Full' : label;
@@ -112,7 +145,10 @@
 		</div>
 
 		<!-- Plots area -->
-		<div class="min-w-0 flex-1 overflow-y-auto">
+		<div class="relative min-w-0 flex-1 overflow-y-auto">
+			{#if busy}
+				<BusyOverlay label="Redrawing" />
+			{/if}
 			{#if files.list.length === 0}
 				<div
 					class="flex h-full items-center justify-center text-xs tracking-widest text-gray-500 uppercase"
@@ -132,9 +168,9 @@
 						<Plot
 							{audioFile}
 							{result}
-							selectedBand={options.selectedBand}
-							loudnessType={options.loudnessType}
-							lufsOffset={lufsOffset(audioFile.id)}
+							selectedBand={applied.band}
+							loudnessType={applied.loudnessType}
+							lufsOffset={applied.normalize ? lufsOffset(audioFile.id) : 0}
 						/>
 					{/if}
 				{/each}
