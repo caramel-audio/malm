@@ -14,6 +14,9 @@ export type BandResult = {
 export type FileResult = {
 	fileId: string;
 	bands: BandResult[];
+	// [min, max] of the raw signal per 100 ms — the stored waveform "peak file".
+	// Optional: results saved before streaming analysis don't have it.
+	waveform?: [number, number][];
 };
 
 export const results = $state<{ data: FileResult[]; isFresh: boolean }>({

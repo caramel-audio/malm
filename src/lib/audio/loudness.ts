@@ -85,89 +85,152 @@ function integratedLufs(chunkSS: Float64Array[], stepSamples: number): number {
 	return toDb(gated2.reduce((a, b) => a + b, 0) / gated2.length);
 }
 
-export async function measureLoudness(
-	buffer: AudioBuffer,
-	band: FreqBand
-): Promise<Omit<BandResult, 'label'>> {
-	const sr = buffer.sampleRate;
-	const stepSamples = Math.round(0.1 * sr); // 100 ms chunks
-	const totalSteps = Math.floor(buffer.length / stepSamples);
-	const nCh = buffer.numberOfChannels;
+/**
+ * Push-based EBU R128 meter. Feed arbitrary-length PCM chunks; filter state and
+ * the partially filled 100 ms step carry across `feed()` calls, so chunking has
+ * no effect on the result.
+ */
+export class LoudnessMeter {
+	private readonly stepSamples: number;
+	private readonly bandCoeffs: BiquadCoeffs[];
+	private readonly kCoeffs: BiquadCoeffs[];
+	private readonly bandStates: Float64Array[][];
+	private readonly kStates: Float64Array[][];
 
-	const bandCoeffs = buildBandCoeffs(band, sr);
-	const kCoeffs = kWeightingCoeffs(sr);
+	// Completed 100 ms steps: K-weighted sum-of-squares per channel, band peak per step
+	private readonly stepSS: number[][];
+	private readonly peak: [number, number][] = [];
 
-	// Per-channel filter states: [channel][stage] -> Float64Array([s0, s1])
-	const bandStates = Array.from({ length: nCh }, () => bandCoeffs.map(() => new Float64Array(2)));
-	const kStates = Array.from({ length: nCh }, () => kCoeffs.map(() => new Float64Array(2)));
+	// Accumulators for the step currently being filled
+	private readonly accSS: Float64Array;
+	private accPeak = 0;
+	private samplesIntoStep = 0;
 
-	const channels = Array.from({ length: nCh }, (_, ch) => buffer.getChannelData(ch));
+	constructor(
+		sampleRate: number,
+		private readonly nCh: number,
+		band: FreqBand
+	) {
+		this.stepSamples = Math.round(0.1 * sampleRate);
+		this.bandCoeffs = buildBandCoeffs(band, sampleRate);
+		this.kCoeffs = kWeightingCoeffs(sampleRate);
+		this.bandStates = Array.from({ length: nCh }, () =>
+			this.bandCoeffs.map(() => new Float64Array(2))
+		);
+		this.kStates = Array.from({ length: nCh }, () => this.kCoeffs.map(() => new Float64Array(2)));
+		this.stepSS = Array.from({ length: nCh }, () => []);
+		this.accSS = new Float64Array(nCh);
+	}
 
-	// K-weighted sum-of-squares per 100 ms chunk per channel
-	const chunkSS: Float64Array[] = Array.from({ length: nCh }, () => new Float64Array(totalSteps));
-	const peak: [number, number][] = [];
+	feed(channels: Float32Array[]): void {
+		const { nCh, bandCoeffs, kCoeffs, bandStates, kStates, accSS, stepSamples } = this;
+		const n = channels[0]?.length ?? 0;
 
-	// Single streaming pass: band-filter → peak, then K-weight → SS
-	for (let step = 0; step < totalSteps; step++) {
-		const start = step * stepSamples;
-		const end = Math.min(start + stepSamples, buffer.length);
-		let p = 0;
-
-		for (let ch = 0; ch < nCh; ch++) {
-			const src = channels[ch];
-			const bs = bandStates[ch];
-			const ks = kStates[ch];
-			let ss = 0;
-
-			for (let i = start; i < end; i++) {
-				let y = src[i];
+		for (let i = 0; i < n; i++) {
+			for (let ch = 0; ch < nCh; ch++) {
+				const bs = bandStates[ch];
+				const ks = kStates[ch];
+				let y = channels[ch][i];
 				for (let s = 0; s < bandCoeffs.length; s++) y = processSample(y, bandCoeffs[s], bs[s]);
 				const abs = Math.abs(y);
-				if (abs > p) p = abs;
+				if (abs > this.accPeak) this.accPeak = abs;
 				for (let s = 0; s < kCoeffs.length; s++) y = processSample(y, kCoeffs[s], ks[s]);
-				ss += y * y;
+				accSS[ch] += y * y;
 			}
 
-			chunkSS[ch][step] = ss;
+			if (++this.samplesIntoStep === stepSamples) {
+				const step = this.peak.length;
+				for (let ch = 0; ch < nCh; ch++) {
+					this.stepSS[ch].push(accSS[ch]);
+					accSS[ch] = 0;
+				}
+				this.peak.push([step * 100, 20 * Math.log10(Math.max(this.accPeak, 1e-10))]);
+				this.accPeak = 0;
+				this.samplesIntoStep = 0;
+			}
 		}
-
-		peak.push([step * 100, 20 * Math.log10(Math.max(p, 1e-10))]);
-
-		// Yield to the event loop every 30 chunks (~3 s) to keep UI responsive
-		if (step % 30 === 29) await new Promise((r) => setTimeout(r, 0));
 	}
 
-	// Sliding-window momentary (400 ms) and short-term (3 s) LUFS
-	const momentaryChunks = 4,
-		shortTermChunks = 30;
-	const mRunning = new Float64Array(nCh);
-	const stRunning = new Float64Array(nCh);
-	const momentary: [number, number][] = [];
-	const shortTerm: [number, number][] = [];
+	/** Trailing partial step is discarded, matching the original whole-buffer pass. */
+	finish(): Omit<BandResult, 'label'> {
+		const { nCh, stepSamples } = this;
+		const chunkSS = this.stepSS.map((ss) => Float64Array.from(ss));
+		const totalSteps = chunkSS[0]?.length ?? 0;
 
-	for (let step = 0; step < totalSteps; step++) {
-		for (let ch = 0; ch < nCh; ch++) {
-			mRunning[ch] += chunkSS[ch][step];
-			if (step >= momentaryChunks) mRunning[ch] -= chunkSS[ch][step - momentaryChunks];
-			stRunning[ch] += chunkSS[ch][step];
-			if (step >= shortTermChunks) stRunning[ch] -= chunkSS[ch][step - shortTermChunks];
+		// Sliding-window momentary (400 ms) and short-term (3 s) LUFS
+		const momentaryChunks = 4,
+			shortTermChunks = 30;
+		const mRunning = new Float64Array(nCh);
+		const stRunning = new Float64Array(nCh);
+		const momentary: [number, number][] = [];
+		const shortTerm: [number, number][] = [];
+
+		for (let step = 0; step < totalSteps; step++) {
+			for (let ch = 0; ch < nCh; ch++) {
+				mRunning[ch] += chunkSS[ch][step];
+				if (step >= momentaryChunks) mRunning[ch] -= chunkSS[ch][step - momentaryChunks];
+				stRunning[ch] += chunkSS[ch][step];
+				if (step >= shortTermChunks) stRunning[ch] -= chunkSS[ch][step - shortTermChunks];
+			}
+
+			const mChunks = Math.min(step + 1, momentaryChunks);
+			const stChunks = Math.min(step + 1, shortTermChunks);
+			let mSum = 0,
+				stSum = 0;
+			for (let ch = 0; ch < nCh; ch++) {
+				const gain = CHANNEL_GAINS[ch] ?? 1;
+				mSum += gain * (mRunning[ch] / (mChunks * stepSamples));
+				stSum += gain * (stRunning[ch] / (stChunks * stepSamples));
+			}
+
+			momentary.push([step * 100, toDb(mSum)]);
+			shortTerm.push([step * 100, toDb(stSum)]);
 		}
 
-		const mChunks = Math.min(step + 1, momentaryChunks);
-		const stChunks = Math.min(step + 1, shortTermChunks);
-		let mSum = 0,
-			stSum = 0;
-		for (let ch = 0; ch < nCh; ch++) {
-			const gain = CHANNEL_GAINS[ch] ?? 1;
-			mSum += gain * (mRunning[ch] / (mChunks * stepSamples));
-			stSum += gain * (stRunning[ch] / (stChunks * stepSamples));
-		}
+		return {
+			momentary,
+			shortTerm,
+			peak: this.peak,
+			integrated: totalSteps > 0 ? integratedLufs(chunkSS, stepSamples) : -Infinity
+		};
+	}
+}
 
-		momentary.push([step * 100, toDb(mSum)]);
-		shortTerm.push([step * 100, toDb(stSum)]);
+/**
+ * Min/max of the raw (unfiltered) signal per 100 ms step, across all channels —
+ * the stored "peak file" the plot draws instead of re-reading PCM.
+ */
+export class WaveformAccumulator {
+	private readonly stepSamples: number;
+	private readonly points: [number, number][] = [];
+	private min = 0;
+	private max = 0;
+	private samplesIntoStep = 0;
+
+	constructor(sampleRate: number) {
+		this.stepSamples = Math.round(0.1 * sampleRate);
 	}
 
-	const integrated = integratedLufs(chunkSS, stepSamples);
+	feed(channels: Float32Array[]): void {
+		const nCh = channels.length;
+		const n = channels[0]?.length ?? 0;
+		for (let i = 0; i < n; i++) {
+			for (let ch = 0; ch < nCh; ch++) {
+				const v = channels[ch][i];
+				if (v < this.min) this.min = v;
+				if (v > this.max) this.max = v;
+			}
+			if (++this.samplesIntoStep === this.stepSamples) {
+				this.points.push([this.min, this.max]);
+				this.min = 0;
+				this.max = 0;
+				this.samplesIntoStep = 0;
+			}
+		}
+	}
 
-	return { momentary, shortTerm, peak, integrated };
+	finish(): [number, number][] {
+		if (this.samplesIntoStep > 0) this.points.push([this.min, this.max]);
+		return this.points;
+	}
 }

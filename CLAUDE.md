@@ -82,16 +82,17 @@ OPFS helpers live in `src/lib/storage/opfs.ts`.
 **State** lives in `$state` modules under `src/lib/state/`:
 
 - `project.svelte.ts` — project list + CRUD (localStorage-backed); `projects.list`, `createProject`, `deleteProject`, `renameProject`
-- `files.svelte.ts` — loaded `AudioFile` objects (id, File, decoded `AudioBuffer`, metadata); writes to OPFS when `currentProjectId` is set
+- `files.svelte.ts` — loaded `AudioFile` objects (id, File, metadata — no PCM); writes to OPFS when `currentProjectId` is set
 - `options.svelte.ts` — crossover frequencies and analysis progress; `loadOptionsForProject` / `saveOptionsForProject` use per-project localStorage keys
-- `results.svelte.ts` — `FileResult[]` produced by analysis; each file has one `BandResult` per band; `isFresh` flag indicates whether results match the current file set and options (used to disable the Analyze button)
+- `results.svelte.ts` — `FileResult[]` produced by analysis; each file has one `BandResult` per band plus an optional `waveform` (100 ms min/max "peak file" the plot draws); `isFresh` flag indicates whether results match the current file set and options (used to disable the Analyze button)
 
-**Audio pipeline** (`src/lib/audio/`):
+**Audio pipeline** (`src/lib/audio/`) — fully streaming; a multi-hour track is never decoded into one buffer:
 
-1. `analysis.ts` — top-level orchestrator; iterates files × bands, calls filters then loudness, reports progress via callback
-2. `filters.ts` — `buildBands(frequencies)` derives `FreqBand[]` from crossover list; `renderBand()` runs a 4th-order LR4 filter chain through `OfflineAudioContext`
-3. `loudness.ts` — K-weighted LUFS measurement; custom O(N) sliding-window implementation for momentary/short-term curves, plus `@domchristie/needles` for EBU R128 integrated LUFS
-4. `playback.svelte.ts` — stateful playback via `AudioContext`; applies the same LR4 filter chain live so band-isolated playback matches analysis
+1. `decode.ts` — `decodeAudioChunks(file)` async-generates small PCM chunks via mediabunny (WebCodecs), falling back to one-shot `decodeAudioData` for formats it cannot demux; `probeAudio(file)` reads duration/sample rate/channels
+2. `analysis.ts` — top-level orchestrator; one decode pass per file feeds every band's meter plus the waveform accumulator, reports progress weighted by duration
+3. `filters.ts` — `buildBands(frequencies)` derives `FreqBand[]` from crossover list; `buildBandCoeffs()` returns the 4th-order LR4 biquad stages
+4. `loudness.ts` — push-based `LoudnessMeter` (`feed()` / `finish()`): K-weighted LUFS, custom O(N) sliding windows for momentary/short-term, custom EBU R128 gating for integrated. Filter state and the partial 100 ms step carry across `feed()` calls, so chunking never changes the result (`loudness.spec.ts` pins this). `WaveformAccumulator` collects the peak file.
+5. `playback.svelte.ts` — streams through a singleton `HTMLAudioElement` → `MediaElementAudioSourceNode`; applies the same LR4 filter chain live so band-isolated playback matches analysis
 
 **Components** (`src/lib/components/`):
 
@@ -106,7 +107,7 @@ OPFS helpers live in `src/lib/storage/opfs.ts`.
 
 - Svelte 5 throughout — use runes (`$state`, `$derived`, `$effect`), not stores.
 - State modules export plain reactive objects (not classes). Components import and mutate them directly.
-- `AudioBuffer` objects stay in `files.list`; analysis reads them but does not store filtered copies.
+- Full PCM is never held in memory. `files.list` holds `File` handles (lazy OPFS files); analysis and playback stream from them.
 - Playback filters are applied live (same coefficients as analysis) to avoid storing one buffer per band per file.
 - Auto-save is debounced via `setTimeout` inside `$effect` blocks in the `[id]` layout; an `isLoaded` flag gates all save effects so initial state population doesn't trigger spurious writes.
 

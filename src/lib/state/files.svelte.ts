@@ -1,6 +1,8 @@
 import { parseBlob, selectCover } from 'music-metadata';
 import { saveAudioFile, removeAudioFile, reorderAudioFiles } from '$lib/storage/opfs';
 import { updateProjectMeta } from '$lib/state/project.svelte';
+import { isLikelyAudioFile, mimeTypeFor } from '$lib/audio/formats';
+import { probeAudio } from '$lib/audio/decode';
 
 export type AudioFile = {
 	id: string;
@@ -13,7 +15,6 @@ export type AudioFile = {
 	bitrate: number | null; // kbps
 	sampleRate: number | null; // Hz
 	coverUrl: string | null; // ephemeral object URL
-	buffer: AudioBuffer | null;
 };
 
 export const files = $state<{ list: AudioFile[] }>({ list: [] });
@@ -53,17 +54,26 @@ function filenameFallback(file: File): { name: string; artist: string } {
 	return { name: base, artist: '' };
 }
 
-export async function extractMetadata(file: File): Promise<{
+/**
+ * `withDuration` makes music-metadata scan far enough to report a duration
+ * (needed at upload time). Project load skips it — the duration is already in
+ * the manifest and scanning a multi-hour file back out of OPFS is wasteful.
+ */
+export async function extractMetadata(
+	file: File,
+	withDuration = false
+): Promise<{
 	name: string;
 	artist: string;
 	album: string;
 	codec: string;
 	bitrate: number | null;
 	sampleRate: number | null;
+	duration: number | null;
 	coverUrl: string | null;
 }> {
 	try {
-		const meta = await parseBlob(file, { duration: false, skipCovers: false });
+		const meta = await parseBlob(file, { duration: withDuration, skipCovers: false });
 		const t = meta.common;
 		const f = meta.format;
 
@@ -74,6 +84,7 @@ export async function extractMetadata(file: File): Promise<{
 		const codec = f.codec?.trim() || '';
 		const bitrate = f.bitrate != null ? Math.round(f.bitrate / 1000) : null;
 		const sampleRate = f.sampleRate ?? null;
+		const duration = f.duration ?? null;
 
 		// selectCover throws on an empty array (reduce without initial value)
 		const pic = t.picture?.length ? selectCover(t.picture) : null;
@@ -91,10 +102,18 @@ export async function extractMetadata(file: File): Promise<{
 				)
 			: null;
 
-		return { name, artist, album, codec, bitrate, sampleRate, coverUrl };
+		return { name, artist, album, codec, bitrate, sampleRate, duration, coverUrl };
 	} catch {
 		const fallback = filenameFallback(file);
-		return { ...fallback, album: '', codec: '', bitrate: null, sampleRate: null, coverUrl: null };
+		return {
+			...fallback,
+			album: '',
+			codec: '',
+			bitrate: null,
+			sampleRate: null,
+			duration: null,
+			coverUrl: null
+		};
 	}
 }
 
@@ -102,62 +121,91 @@ function totalSizeBytes(): number {
 	return files.list.reduce((sum, f) => sum + f.file.size, 0);
 }
 
-export async function addFiles(fileList: FileList | File[]): Promise<void> {
-	const ctx = new AudioContext();
-	const items = Array.from(fileList);
+/**
+ * Adds every usable file and returns the names of the ones that were skipped
+ * (not audio, unreadable, or in a format this browser cannot decode) so the UI
+ * can report them instead of the whole batch failing.
+ */
+export async function addFiles(fileList: FileList | File[]): Promise<string[]> {
+	const skipped: string[] = [];
+	const items = Array.from(fileList).filter((file) => {
+		if (isLikelyAudioFile(file)) return true;
+		skipped.push(file.name);
+		return false;
+	});
 
 	await Promise.all(
 		items.map(async (file) => {
-			const arrayBuffer = await file.arrayBuffer();
-			const buffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
-			const meta = await extractMetadata(file);
-			const { name, artist, album, codec, bitrate, coverUrl } = meta;
-			const sampleRate = meta.sampleRate ?? sampleRateFromBuffer(arrayBuffer, file.type, file.name);
-			const id = crypto.randomUUID();
+			try {
+				// No decode here — a multi-hour track would blow up memory. Metadata
+				// only; the analysis pass streams the audio when it needs it.
+				const meta = await extractMetadata(file, true);
+				const { name, artist, album, codec, bitrate, coverUrl } = meta;
 
-			files.list.push({
-				id,
-				file,
-				name,
-				artist,
-				album,
-				duration: buffer.duration,
-				codec,
-				bitrate,
-				sampleRate,
-				coverUrl,
-				buffer
-			});
+				const header = await file.slice(0, 22).arrayBuffer();
+				let sampleRate =
+					meta.sampleRate ?? sampleRateFromBuffer(header, mimeTypeFor(file), file.name);
+				let duration = meta.duration;
 
-			if (currentProjectId) {
-				await saveAudioFile(
-					currentProjectId,
-					{
-						id,
-						name,
-						artist,
-						album,
-						duration: buffer.duration,
-						fileName: file.name,
-						mimeType: file.type || 'audio/mpeg',
-						sizeBytes: file.size,
-						codec,
-						bitrate,
-						sampleRate
-					},
-					file
-				);
+				if (duration == null || sampleRate == null) {
+					// iCloud-backed files can fail to read, and some formats hide their
+					// duration from the tag parser — fall back to a demuxer probe.
+					const probe = await probeAudio(file);
+					duration ??= probe?.duration ?? null;
+					sampleRate ??= probe?.sampleRate ?? null;
+				}
+				if (duration == null) throw new Error('undecodable');
 
-				updateProjectMeta(currentProjectId, {
-					fileCount: files.list.length,
-					fileSizeBytes: totalSizeBytes(),
-					updatedAt: Date.now()
+				const id = crypto.randomUUID();
+
+				files.list.push({
+					id,
+					file,
+					name,
+					artist,
+					album,
+					duration,
+					codec,
+					bitrate,
+					sampleRate,
+					coverUrl
 				});
+
+				if (currentProjectId) {
+					await saveAudioFile(
+						currentProjectId,
+						{
+							id,
+							name,
+							artist,
+							album,
+							duration,
+							fileName: file.name,
+							mimeType: mimeTypeFor(file) || 'audio/mpeg',
+							sizeBytes: file.size,
+							codec,
+							bitrate,
+							sampleRate
+						},
+						file
+					);
+
+					updateProjectMeta(currentProjectId, {
+						fileCount: files.list.length,
+						fileSizeBytes: totalSizeBytes(),
+						updatedAt: Date.now()
+					});
+				}
+			} catch (e) {
+				// Running out of storage affects the whole batch — let it propagate.
+				if (e instanceof DOMException && e.name === 'QuotaExceededError') throw e;
+				// One bad file must not abort the rest of the batch.
+				skipped.push(file.name);
 			}
 		})
 	);
 
-	ctx.close();
+	return skipped;
 }
 
 export function removeFile(id: string): void {
