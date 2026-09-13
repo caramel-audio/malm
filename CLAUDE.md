@@ -46,7 +46,7 @@ SHOT_SEED=files SHOT_ROUTE='/projects/[id]/setup' npx playwright test --project=
 SHOT_SEED=analysis SHOT_ROUTE='/projects/[id]/analysis' npx playwright test --project=screenshot
 ```
 
-`SHOT_SEED=files` seeds a project with two tracks (`[id]` in the route is replaced); `analysis` also runs analysis first. `SHOT_SPLASH=1` shows the first-visit splash. The webServer has `reuseExistingServer: true`, so keep `npm run preview` (port 4173) running for fast repeated shots. Note: a full page load of `/projects/[id]` always lands on `/setup` (server-side redirect); the results-aware redirect to `/analysis` only happens on client-side navigation from the hub.
+`SHOT_SEED=files` seeds a project with two tracks (`[id]` in the route is replaced); `analysis` also runs analysis first. `SHOT_SPLASH=1` shows the first-visit splash; `SHOT_CLICK='<button name>'` clicks a button before the shot (e.g. to open a modal). The webServer has `reuseExistingServer: true`, so keep `npm run preview` (port 4173) running for fast repeated shots. Note: a full page load of `/projects/[id]` always lands on `/setup` (server-side redirect); the results-aware redirect to `/analysis` only happens on client-side navigation from the hub.
 
 ## Route structure
 
@@ -71,6 +71,7 @@ When a project already has saved results, the `[id]` layout redirects straight t
 | ----------------------------------------------- | ------------ | ----------------------------------------- |
 | Project list (id, name, dates, file count/size) | localStorage | `malm_projects`                           |
 | Per-project crossover options                   | localStorage | `malm_project_{id}_options`               |
+| Saved crossover presets (global)                | localStorage | `malm_crossover_presets`                  |
 | Audio file binaries                             | OPFS         | `/malm/projects/{id}/files/{fileId}`      |
 | File manifest (ordered metadata)                | OPFS         | `/malm/projects/{id}/files/manifest.json` |
 | Analysis results                                | OPFS         | `/malm/projects/{id}/results.json`        |
@@ -83,24 +84,29 @@ OPFS helpers live in `src/lib/storage/opfs.ts`.
 
 - `project.svelte.ts` — project list + CRUD (localStorage-backed); `projects.list`, `createProject`, `deleteProject`, `renameProject`
 - `files.svelte.ts` — loaded `AudioFile` objects (id, File, metadata — no PCM); writes to OPFS when `currentProjectId` is set
-- `options.svelte.ts` — crossover frequencies and analysis progress; `loadOptionsForProject` / `saveOptionsForProject` use per-project localStorage keys
-- `results.svelte.ts` — `FileResult[]` produced by analysis; each file has one `BandResult` per band plus an optional `waveform` (100 ms min/max "peak file" the plot draws); `isFresh` flag indicates whether results match the current file set and options (used to disable the Analyze button)
+- `options.svelte.ts` — crossover frequencies, filter `slope`, `pinnedFileId`; `loadOptionsForProject` / `saveOptionsForProject` use per-project localStorage keys
+- `presets.svelte.ts` — named crossover presets (`malm_crossover_presets`), plus `projectCrossovers` / `defaultCrossoverForNewProject` which read other projects' option keys
+- `results.svelte.ts` — `FileResult[]` produced by analysis; each file has one `BandResult` per band, a `sig` (the crossovers+slope it was measured with) and an optional `waveform` (100 ms min/max "peak file" the plot draws); `isFresh` flag indicates whether results match the current file set and options (used to disable the Analyze button). Also owns the shared `lufsOffset` / `quietestFileId` / `nearestValue` helpers
 
 **Audio pipeline** (`src/lib/audio/`) — fully streaming; a multi-hour track is never decoded into one buffer:
 
 1. `decode.ts` — `decodeAudioChunks(file)` async-generates small PCM chunks via mediabunny (WebCodecs), falling back to one-shot `decodeAudioData` for formats it cannot demux; `probeAudio(file)` reads duration/sample rate/channels
-2. `analysis.ts` — top-level orchestrator; one decode pass per file feeds every band's meter plus the waveform accumulator, reports progress weighted by duration
-3. `filters.ts` — `buildBands(frequencies)` derives `FreqBand[]` from crossover list; `buildBandCoeffs()` returns the 4th-order LR4 biquad stages
+2. `analysis.ts` — top-level orchestrator; one decode pass per file feeds every band's meter plus the waveform accumulator, reports progress weighted by duration. `splitForAnalysis` keeps results whose file, signature and waveform are all still valid, so appending a track only measures that track
+3. `filters.ts` — `buildBands(frequencies)` derives `FreqBand[]` from crossover list; `buildBandCoeffs(band, sampleRate, slope)` returns the cascaded stages for LR 12/24/48 or Butterworth 12/24/48 (LR12's halves are 1st-order sections expressed as biquads with `b2`/`a2` zeroed)
 4. `loudness.ts` — push-based `LoudnessMeter` (`feed()` / `finish()`): K-weighted LUFS, custom O(N) sliding windows for momentary/short-term, custom EBU R128 gating for integrated. Filter state and the partial 100 ms step carry across `feed()` calls, so chunking never changes the result (`loudness.spec.ts` pins this). `WaveformAccumulator` collects the peak file.
-5. `playback.svelte.ts` — streams through a singleton `HTMLAudioElement` → `MediaElementAudioSourceNode`; applies the same LR4 filter chain live so band-isolated playback matches analysis
+5. `playback.svelte.ts` — streams through a singleton `HTMLAudioElement` → `MediaElementAudioSourceNode`; builds `IIRFilterNode`s from the _analysis_ coefficients so band-isolated playback matches the measurement exactly
+6. `transport.svelte.ts` — the app-aware layer over playback: `playTrack` / `toggle` / `seekBy` / `readout`, band + normalization gain, repeat. Every playback entry point (transport bar, plot clicks, spacebar) goes through it
 
 **Components** (`src/lib/components/`):
 
 - `NavBar.svelte` — top bar present on all project pages; logo, breadcrumb with project switcher dropdown, Setup/Analysis tabs, info button; two-row on mobile (breadcrumb row + tab row)
 - `Upload.svelte` — file drop zone + track list with drag-to-reorder
 - `Options.svelte` — crossover frequency editor
-- `Results.svelte` — band/loudness-type selectors, "normalize to quietest" toggle, renders one `Plot` per file; controls are a left sidebar on desktop, two-column top bar on mobile
-- `Plot.svelte` — D3-based loudness timeline with playhead and click-to-seek
+- `Results.svelte` — band/loudness-type selectors, "normalize to quietest" toggle, renders one `Plot` per file; the pinned file's plot sits outside the scroll area. Controls are a left sidebar on desktop, two-column top bar on mobile
+- `Plot.svelte` — D3-based loudness timeline with playhead and click-to-seek; reports hover values to the transport bar and owns no playback controls of its own
+- `TransportBar.svelte` — bottom bar on every project page: current track, transport buttons, peak/LUFS-M/LUFS-S readout (grey following the playhead, plot-colored while hovering)
+- `CrossoverBar.svelte` — the log-frequency strip; `readonly` for preset previews
+- `BusyOverlay.svelte` — overlay shown while a blocking redraw or project load runs
 - `SplashScreen.svelte` — shown automatically on first load; also triggered manually via the NavBar info button
 
 ## Key conventions
