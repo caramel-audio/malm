@@ -59,7 +59,7 @@
 	<!-- Upload + Options panels -->
 	<div class="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
 		<div
-			class="min-h-48 overflow-y-auto border-b border-gray-700 md:min-h-0 md:w-2/3 md:border-r md:border-b-0"
+			class="flex min-h-48 flex-col overflow-hidden border-b border-gray-700 md:min-h-0 md:w-2/3 md:border-r md:border-b-0"
 		>
 			<Upload />
 		</div>

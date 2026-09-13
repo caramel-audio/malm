@@ -167,28 +167,6 @@
 		FILES
 	</div>
 
-	<!-- Drop zone -->
-	<button
-		type="button"
-		class="m-3 flex cursor-pointer flex-col items-center justify-center gap-2 border border-dashed py-6 text-xs transition-colors {files
-			.list.length === 0
-			? 'flex-1'
-			: ''} {dragOver
-			? 'border-secondary-400 text-secondary-400'
-			: 'border-gray-700 text-gray-400 hover:border-secondary-400 hover:text-secondary-400'}"
-		ondrop={onDrop}
-		ondragover={onDragOver}
-		ondragleave={onDragLeave}
-		onclick={() => inputEl.click()}
-	>
-		{#if loading}
-			<span>LOADING...</span>
-		{:else}
-			<span>DROP AUDIO FILES HERE</span>
-			<span>or <span class="underline">BROWSE</span></span>
-		{/if}
-	</button>
-
 	<!--
 		Visually hidden rather than `hidden`/`display:none`: Safari refuses to open
 		the picker for an input that isn't rendered.
@@ -215,7 +193,7 @@
 	{/if}
 
 	<!-- File list -->
-	<ul class="{files.list.length > 0 ? 'flex-1' : ''} overflow-y-auto">
+	<ul class="min-h-0 overflow-y-auto">
 		{#each files.list as f, i (f.id)}
 			<li
 				class="flex items-center gap-3 border-b border-gray-800 px-3 py-2 hover:bg-gray-900 {dragSrcIndex ===
@@ -284,6 +262,25 @@
 			</li>
 		{/each}
 	</ul>
+
+	<!-- Drop zone: below the tracks, filling whatever height is left -->
+	<button
+		type="button"
+		class="m-3 flex min-h-24 flex-1 cursor-pointer flex-col items-center justify-center gap-2 border border-dashed py-6 text-xs transition-colors {dragOver
+			? 'border-secondary-400 text-secondary-400'
+			: 'border-gray-700 text-gray-400 hover:border-secondary-400 hover:text-secondary-400'}"
+		ondrop={onDrop}
+		ondragover={onDragOver}
+		ondragleave={onDragLeave}
+		onclick={() => inputEl.click()}
+	>
+		{#if loading}
+			<span>LOADING...</span>
+		{:else}
+			<span>DROP AUDIO FILES HERE</span>
+			<span>or <span class="underline">BROWSE</span></span>
+		{/if}
+	</button>
 </section>
 
 <!-- Storage quota warning -->

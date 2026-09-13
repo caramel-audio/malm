@@ -24,6 +24,17 @@ test.describe('upload', () => {
 		await expect(row(page, 2)).toContainText('sine440-wav16-44k-mono-0.5s');
 	});
 
+	test('drop zone sits below the track list and fills the rest of the column', async ({ page }) => {
+		await seedProject(page, [SHORT_WAV]);
+		const zone = page.getByRole('button', { name: /DROP AUDIO FILES HERE/ });
+		const lastRow = (await row(page, 0).boundingBox())!;
+		const box = (await zone.boundingBox())!;
+		expect(box.y).toBeGreaterThanOrEqual(lastRow.y + lastRow.height);
+		// reaches (near) the bottom of the files column rather than being a fixed strip
+		const column = (await page.locator('section:has(> ul)').boundingBox())!;
+		expect(box.y + box.height).toBeGreaterThan(column.y + column.height - 40);
+	});
+
 	test('tagged mp3 shows title, artist and album', async ({ page }) => {
 		await seedProject(page, ['sine440-tagged-5s.mp3']);
 		const r = row(page, 0);
