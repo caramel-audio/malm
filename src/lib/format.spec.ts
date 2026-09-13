@@ -57,6 +57,25 @@ describe('lufsColor', () => {
 		expect(mid.some(([r, g, b]) => g > r && g > b)).toBe(true);
 	});
 
+	it('tints toward grey without changing the hue direction', () => {
+		const full = rgb(lufsColor(-8));
+		const half = rgb(lufsColor(-8, 0.5));
+		const grey = rgb(lufsColor(-8, 1));
+		// half sits between the full colour and the grey endpoint on every channel
+		for (let i = 0; i < 3; i++) {
+			expect(half[i]).toBeGreaterThanOrEqual(Math.min(full[i], grey[i]) - 1);
+			expect(half[i]).toBeLessThanOrEqual(Math.max(full[i], grey[i]) + 1);
+		}
+		// and it is genuinely duller than the full colour
+		const spread = (c: number[]) => Math.max(...c) - Math.min(...c);
+		expect(spread(half)).toBeLessThan(spread(full));
+		expect(spread(grey)).toBeLessThan(spread(half));
+	});
+
+	it('defaults to no tint', () => {
+		expect(lufsColor(-20)).toBe(lufsColor(-20, 0));
+	});
+
 	it('is continuous — no jump between neighbouring levels', () => {
 		for (let lufs = -40; lufs < 0; lufs += 0.5) {
 			const a = rgb(lufsColor(lufs));

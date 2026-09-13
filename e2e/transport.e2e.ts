@@ -5,6 +5,7 @@ import {
 	seedProject,
 	runAnalysis,
 	SHORT_WAV,
+	SHORT_WAV2,
 	TINY_WAV
 } from './helpers';
 
@@ -141,6 +142,43 @@ test.describe('transport bar', () => {
 		await expect(bar(page).getByRole('button', { name: 'Play' })).toBeVisible();
 	});
 
+	test('the skip buttons are captioned -10 and +10', async ({ page }) => {
+		await seedProject(page, [SHORT_WAV]);
+		await expect(bar(page).getByRole('button', { name: 'Back 10 seconds' })).toContainText('-10');
+		await expect(bar(page).getByRole('button', { name: 'Forward 10 seconds' })).toContainText(
+			'+10'
+		);
+	});
+
+	test('the readout is tinted at the playhead and full colour on hover', async ({ page }) => {
+		test.slow();
+		const colorOf = () =>
+			bar(page)
+				.getByTestId('transport-lufs-m')
+				.evaluate((el) => getComputedStyle(el).color);
+
+		await seedProject(page, [SHORT_WAV2]);
+		await runAnalysis(page);
+
+		await bar(page).getByRole('button', { name: 'Play' }).click();
+		await expect(bar(page).getByTestId('transport-lufs-m')).not.toHaveText('—');
+		const atPlayhead = await colorOf();
+
+		await page
+			.getByTestId('plot')
+			.first()
+			.hover({ position: { x: 250, y: 80 } });
+		await expect(bar(page).getByTestId('transport-lufs-m')).not.toHaveText('—');
+		const hovered = await colorOf();
+
+		const rgb = (c: string) => c.match(/\d+/g)!.map(Number);
+		const spread = (c: number[]) => Math.max(...c) - Math.min(...c);
+		// both carry colour, but the playhead one is pulled toward grey
+		expect(atPlayhead).not.toBe(hovered);
+		expect(spread(rgb(hovered))).toBeGreaterThan(spread(rgb(atPlayhead)));
+		expect(spread(rgb(atPlayhead))).toBeGreaterThan(0);
+	});
+
 	test('leaving the project stops playback', async ({ page }) => {
 		// The <audio> element lives outside the DOM, so stash it on first play.
 		// Navigation to the hub is client-side, so the reference survives.
@@ -159,7 +197,9 @@ test.describe('transport bar', () => {
 		await page.waitForURL(/\/projects$/);
 		await expect(bar(page)).toHaveCount(0); // no transport bar on the hub
 		await expect
-			.poll(() => page.evaluate(() => (window as unknown as { __el: HTMLMediaElement }).__el.paused))
+			.poll(() =>
+				page.evaluate(() => (window as unknown as { __el: HTMLMediaElement }).__el.paused)
+			)
 			.toBe(true);
 	});
 

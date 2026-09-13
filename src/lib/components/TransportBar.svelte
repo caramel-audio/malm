@@ -35,8 +35,10 @@
 		return v === null || !isFinite(v) ? '—' : v.toFixed(1);
 	}
 
+	// Half-tinted toward grey while following the playhead, full colour on hover.
 	function lufsStyle(v: number | null): string {
-		return values.hovering && v !== null && isFinite(v) ? `color: ${lufsColor(v)}` : '';
+		if (v === null || !isFinite(v)) return '';
+		return `color: ${lufsColor(v, values.hovering ? 0 : 0.5)}`;
 	}
 </script>
 
@@ -71,13 +73,14 @@
 			</svg>
 		</button>
 		<button
-			class="cursor-pointer p-1.5 text-gray-400 transition-colors hover:text-white"
+			class="flex cursor-pointer flex-col items-center gap-0.5 p-1.5 text-gray-400 transition-colors hover:text-white"
 			onclick={() => seekBy(-10)}
 			aria-label="Back 10 seconds"
 		>
 			<svg viewBox="0 0 24 24" fill="currentColor" class="size-4" aria-hidden="true">
 				<path d="M12 5V2L7 6l5 4V7a5 5 0 1 1-5 5H5a7 7 0 1 0 7-7z" />
 			</svg>
+			<span class="font-mono text-[9px] leading-none tabular-nums">-10</span>
 		</button>
 		<button
 			class="cursor-pointer rounded-full bg-gray-800 p-2 text-gray-100 transition-colors hover:bg-gray-700"
@@ -95,13 +98,14 @@
 			{/if}
 		</button>
 		<button
-			class="cursor-pointer p-1.5 text-gray-400 transition-colors hover:text-white"
+			class="flex cursor-pointer flex-col items-center gap-0.5 p-1.5 text-gray-400 transition-colors hover:text-white"
 			onclick={() => seekBy(10)}
 			aria-label="Forward 10 seconds"
 		>
 			<svg viewBox="0 0 24 24" fill="currentColor" class="size-4" aria-hidden="true">
 				<path d="M12 5V2l5 4-5 4V7a5 5 0 1 0 5 5h2a7 7 0 1 1-7-7z" />
 			</svg>
+			<span class="font-mono text-[9px] leading-none tabular-nums">+10</span>
 		</button>
 		<button
 			class="cursor-pointer p-1.5 transition-colors {transport.repeat
@@ -128,9 +132,7 @@
 		<div class="text-right">
 			<div class="text-[9px] tracking-widest text-gray-600 uppercase">LUFS-M</div>
 			<div
-				class="font-mono text-xl leading-none tabular-nums sm:text-2xl {values.hovering
-					? ''
-					: 'text-gray-400'}"
+				class="font-mono text-xl leading-none text-gray-400 tabular-nums sm:text-2xl"
 				style={lufsStyle(values.momentary)}
 				data-testid="transport-lufs-m"
 			>
@@ -140,9 +142,7 @@
 		<div class="text-right">
 			<div class="text-[9px] tracking-widest text-gray-600 uppercase">LUFS-S</div>
 			<div
-				class="font-mono text-xl leading-none tabular-nums sm:text-2xl {values.hovering
-					? ''
-					: 'text-gray-400'}"
+				class="font-mono text-xl leading-none text-gray-400 tabular-nums sm:text-2xl"
 				style={lufsStyle(values.shortTerm)}
 				data-testid="transport-lufs-s"
 			>
