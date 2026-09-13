@@ -1,6 +1,6 @@
 # malm — Multi Audio Loudness Measurement
 
-**[→ Live app](https://malm.app)**
+**[→ Live app](https://malm.caramel.audio)**
 
 ![Screenshot](docs/screenshot.png)
 
