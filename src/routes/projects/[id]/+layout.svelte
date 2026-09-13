@@ -69,6 +69,7 @@
 		void options.pinnedFileId;
 		void options.loudnessType;
 		void options.normalizeToQuietest;
+		void JSON.stringify(options.markers);
 		const id = projectId;
 		if (!isLoaded) return;
 		clearTimeout(optionsSaveTimer);

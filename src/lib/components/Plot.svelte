@@ -40,6 +40,24 @@
 			: null
 	);
 
+	const innerW = $derived(Math.max(0, containerWidth - MARGIN.left - MARGIN.right));
+	const markers = $derived(options.markers[audioFile.id] ?? []);
+
+	function markerLeft(t: number): number {
+		return MARGIN.left + (t / audioFile.duration) * innerW;
+	}
+
+	function markerValue(t: number): number | null {
+		const v = nearestValue(bandResult?.[loudnessType] ?? [], t * 1000);
+		return v === null ? null : v + lufsOffset;
+	}
+
+	function removeMarker(t: number): void {
+		const rest = markers.filter((m) => m !== t);
+		if (rest.length) options.markers[audioFile.id] = rest;
+		else delete options.markers[audioFile.id];
+	}
+
 	// Rebucket the stored 100 ms min/max peak file down to one entry per pixel.
 	function waveformEnvelope(
 		waveform: [number, number][],
@@ -189,7 +207,7 @@
 
 		const hoverLabel = g
 			.append('text')
-			.attr('y', 12)
+			.attr('y', innerH - 4)
 			.style('font-family', 'monospace')
 			.style('font-size', '10px')
 			.attr('text-anchor', 'middle')
@@ -205,6 +223,13 @@
 			.on('click', (event) => {
 				const [mx] = d3.pointer(event);
 				playTrack(audioFile.id, Math.max(0, xScale.invert(mx)));
+			})
+			.on('contextmenu', (event) => {
+				event.preventDefault();
+				const [mx] = d3.pointer(event);
+				const t = Math.min(audioFile.duration, Math.max(0, xScale.invert(mx)));
+				const existing = options.markers[audioFile.id] ?? [];
+				options.markers[audioFile.id] = [...existing, t].sort((a, b) => a - b);
 			})
 			.on('mousemove', (event) => {
 				const [mx] = d3.pointer(event);
@@ -274,6 +299,32 @@
 
 	<div class="relative" bind:clientWidth={containerWidth}>
 		<div bind:this={container} data-testid="plot" class="w-full bg-gray-950"></div>
+		{#each markers as t (t)}
+			{@const value = markerValue(t)}
+			<div
+				data-testid="marker"
+				class="group absolute w-[9px] -translate-x-1/2"
+				style:left="{markerLeft(t)}px"
+				style:top="{MARGIN.top}px"
+				style:height="{HEIGHT - MARGIN.top - MARGIN.bottom}px"
+			>
+				<div class="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-white/60"></div>
+				{#if value !== null}
+					<!-- Same font/size/baseline as the d3 hover label. -->
+					<span
+						class="pointer-events-none absolute bottom-[1px] left-1/2 -translate-x-1/2 rounded-sm bg-gray-950/85 px-1 py-[2px] leading-none"
+						style:font-family="monospace"
+						style:font-size="10px"
+						style:color={lufsColor(value)}>{value.toFixed(1)}</span
+					>
+				{/if}
+				<button
+					class="absolute -top-2 left-1/2 hidden h-5 w-5 -translate-x-1/2 items-center justify-center rounded-full bg-gray-800 text-sm leading-none text-gray-300 group-hover:flex hover:bg-gray-700 hover:text-white"
+					onclick={() => removeMarker(t)}
+					aria-label="Remove marker at {formatTime(t)}">×</button
+				>
+			</div>
+		{/each}
 		{#if playheadLeft !== null}
 			<div
 				class="pointer-events-none absolute top-0 w-px bg-white/40"

@@ -12,7 +12,9 @@ export const options = $state({
 	// Track kept at the top of the list and out of the scroll area.
 	pinnedFileId: null as string | null,
 	loudnessType: 'momentary' as 'momentary' | 'shortTerm',
-	normalizeToQuietest: false
+	normalizeToQuietest: false,
+	// Sticky readout lines per file id, in seconds.
+	markers: {} as Record<string, number[]>
 });
 
 export function resetOptions(): void {
@@ -22,6 +24,7 @@ export function resetOptions(): void {
 	options.pinnedFileId = null;
 	options.loudnessType = 'momentary';
 	options.normalizeToQuietest = false;
+	options.markers = {};
 }
 
 // Per-project persistence helpers (called by the project layout).
@@ -45,6 +48,13 @@ export function loadOptionsForProject(projectId: string): void {
 			options.loudnessType = parsed.loudnessType;
 		if (typeof parsed.normalizeToQuietest === 'boolean')
 			options.normalizeToQuietest = parsed.normalizeToQuietest;
+		if (parsed.markers && typeof parsed.markers === 'object') {
+			options.markers = Object.fromEntries(
+				Object.entries(parsed.markers as Record<string, unknown>)
+					.map(([id, ts]) => [id, Array.isArray(ts) ? ts.filter(Number.isFinite) : []])
+					.filter(([, ts]) => (ts as number[]).length > 0)
+			);
+		}
 	} catch {}
 }
 
@@ -58,7 +68,8 @@ export function saveOptionsForProject(projectId: string): void {
 				selectedBand: options.selectedBand,
 				pinnedFileId: options.pinnedFileId,
 				loudnessType: options.loudnessType,
-				normalizeToQuietest: options.normalizeToQuietest
+				normalizeToQuietest: options.normalizeToQuietest,
+				markers: options.markers
 			})
 		);
 	} catch {}
