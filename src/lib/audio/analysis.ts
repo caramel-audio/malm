@@ -4,20 +4,55 @@ import { buildBands, type Slope } from './filters';
 import { LoudnessMeter, WaveformAccumulator } from './loudness';
 import { decodeAudioChunks } from './decode';
 
+/** Identifies the settings a result was produced with. */
+export function analysisSignature(frequencies: number[], slope: Slope): string {
+	return `${[...frequencies].sort((a, b) => a - b).join(',')}|${slope}`;
+}
+
+/**
+ * Which files still need analyzing: a result is reusable only if its file is
+ * still loaded and it was measured with the current crossovers and slope.
+ */
+export function splitForAnalysis(
+	files: AudioFile[],
+	existing: FileResult[],
+	signature: string
+): { reuse: FileResult[]; todo: AudioFile[] } {
+	const usable = new Map(
+		existing.filter((r) => r.sig === signature).map((r) => [r.fileId, r] as const)
+	);
+	const reuse: FileResult[] = [];
+	const todo: AudioFile[] = [];
+	for (const file of files) {
+		const hit = usable.get(file.id);
+		if (hit) reuse.push(hit);
+		else todo.push(file);
+	}
+	return { reuse, todo };
+}
+
+/**
+ * Analyzes only what `existing` does not already cover, and returns the full
+ * result set ordered like `files`.
+ */
 export async function analyzeFiles(
 	files: AudioFile[],
 	frequencies: number[],
 	slope: Slope,
 	onProgress: (progress: number) => void,
-	signal?: AbortSignal
+	signal?: AbortSignal,
+	existing: FileResult[] = []
 ): Promise<FileResult[]> {
 	const bands = buildBands(frequencies);
-	const totalDuration = files.reduce((sum, f) => sum + (f.duration || 0), 0) || 1;
+	const signature = analysisSignature(frequencies, slope);
+	const { reuse, todo } = splitForAnalysis(files, existing, signature);
+
+	const totalDuration = todo.reduce((sum, f) => sum + (f.duration || 0), 0) || 1;
 	let doneDuration = 0;
 
-	const fileResults: FileResult[] = [];
+	const fileResults: FileResult[] = [...reuse];
 
-	for (const file of files) {
+	for (const file of todo) {
 		signal?.throwIfAborted();
 
 		// One decode pass per file feeds every band meter.
@@ -58,11 +93,17 @@ export async function analyzeFiles(
 			...meters![i].finish()
 		}));
 
-		fileResults.push({ fileId: file.id, bands: bandResults, waveform: waveform!.finish() });
+		fileResults.push({
+			fileId: file.id,
+			sig: signature,
+			bands: bandResults,
+			waveform: waveform!.finish()
+		});
 
 		doneDuration += file.duration || 0;
 		onProgress(Math.min(1, doneDuration / totalDuration));
 	}
 
-	return fileResults;
+	const order = new Map(files.map((f, i) => [f.id, i]));
+	return fileResults.sort((a, b) => (order.get(a.fileId) ?? 0) - (order.get(b.fileId) ?? 0));
 }

@@ -15,6 +15,9 @@ export type BandResult = {
 
 export type FileResult = {
 	fileId: string;
+	// Crossovers + slope this was measured with; results from before this
+	// existed have none and are always re-analyzed.
+	sig?: string;
 	bands: BandResult[];
 	// [min, max] of the raw signal per 100 ms — the stored waveform "peak file".
 	// Optional: results saved before streaming analysis don't have it.

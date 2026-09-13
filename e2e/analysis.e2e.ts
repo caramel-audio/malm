@@ -43,6 +43,36 @@ test.describe('analysis', () => {
 		await expect(page.getByRole('button', { name: 'Analyze' })).toBeEnabled();
 	});
 
+	test('appending a file only analyzes the new one', async ({ page }) => {
+		test.slow();
+		const id = await seedProject(page, [SHORT_WAV]);
+		await runAnalysis(page);
+		await page.waitForTimeout(1000); // let the debounced results save reach OPFS
+
+		// Fingerprint the stored result of the first file. Re-analyzing would
+		// overwrite it with the real value, so if it survives it was reused.
+		await page.evaluate(async (projectId) => {
+			const root = await navigator.storage.getDirectory();
+			const malm = await root.getDirectoryHandle('malm');
+			const projects = await malm.getDirectoryHandle('projects');
+			const dir = await projects.getDirectoryHandle(projectId);
+			const handle = await dir.getFileHandle('results.json');
+			const data = JSON.parse(await (await handle.getFile()).text());
+			for (const band of data[0].bands) band.integrated = -33.3;
+			const writable = await handle.createWritable();
+			await writable.write(JSON.stringify(data));
+			await writable.close();
+		}, id);
+		await page.reload();
+
+		await page.getByRole('link', { name: 'Setup' }).first().click();
+		await uploadFiles(page, SHORT_WAV2);
+		await runAnalysis(page);
+
+		await expect(page.getByText(/LUFS-I:/)).toHaveCount(2);
+		await expect(page.getByText('LUFS-I: -33.3')).toBeVisible();
+	});
+
 	test('changing the filter slope invalidates results', async ({ page }) => {
 		test.slow();
 		await seedProject(page, [TINY_WAV]);

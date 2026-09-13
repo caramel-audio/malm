@@ -4,7 +4,7 @@
 	import { files } from '$lib/state/files.svelte';
 	import { options } from '$lib/state/options.svelte';
 	import { analysis } from '$lib/state/analysis.svelte';
-	import { results, setResults, clearResults } from '$lib/state/results.svelte';
+	import { results, setResults } from '$lib/state/results.svelte';
 	import { analyzeFiles } from '$lib/audio/analysis';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
@@ -26,7 +26,9 @@
 		abortController = new AbortController();
 		analysis.isAnalyzing = true;
 		analysis.progress = 0;
-		clearResults();
+		// Results are kept, not cleared: analyzeFiles reuses the ones that still
+		// match the current files and settings and only measures the difference.
+		const existing = [...results.data];
 		let success = false;
 		try {
 			const data = await analyzeFiles(
@@ -36,7 +38,8 @@
 				(p) => {
 					analysis.progress = p;
 				},
-				abortController.signal
+				abortController.signal,
+				existing
 			);
 			setResults(data);
 			success = true;

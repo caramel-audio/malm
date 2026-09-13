@@ -1,0 +1,58 @@
+import { describe, it, expect } from 'vitest';
+import { analysisSignature, splitForAnalysis } from './analysis';
+import type { AudioFile } from '$lib/state/files.svelte';
+import type { FileResult } from '$lib/state/results.svelte';
+
+const file = (id: string) => ({ id, duration: 10 }) as AudioFile;
+const result = (fileId: string, sig?: string) => ({ fileId, bands: [], sig }) as FileResult;
+
+const SIG = analysisSignature([200, 2000], 'LR24');
+const OTHER = analysisSignature([200, 2000], 'BW12');
+
+describe('analysisSignature', () => {
+	it('changes with the crossovers and with the slope', () => {
+		expect(analysisSignature([200], 'LR24')).not.toBe(analysisSignature([300], 'LR24'));
+		expect(SIG).not.toBe(OTHER);
+	});
+
+	it('ignores crossover order', () => {
+		expect(analysisSignature([2000, 200], 'LR24')).toBe(SIG);
+	});
+});
+
+describe('splitForAnalysis', () => {
+	it('analyzes everything when there are no results', () => {
+		const files = [file('a'), file('b')];
+		const { reuse, todo } = splitForAnalysis(files, [], SIG);
+		expect(reuse).toEqual([]);
+		expect(todo.map((f) => f.id)).toEqual(['a', 'b']);
+	});
+
+	it('only analyzes the appended file', () => {
+		const files = [file('a'), file('b')];
+		const { reuse, todo } = splitForAnalysis(files, [result('a', SIG)], SIG);
+		expect(reuse.map((r) => r.fileId)).toEqual(['a']);
+		expect(todo.map((f) => f.id)).toEqual(['b']);
+	});
+
+	it('re-analyzes everything when the options changed', () => {
+		const files = [file('a'), file('b')];
+		const existing = [result('a', OTHER), result('b', OTHER)];
+		const { reuse, todo } = splitForAnalysis(files, existing, SIG);
+		expect(reuse).toEqual([]);
+		expect(todo.map((f) => f.id)).toEqual(['a', 'b']);
+	});
+
+	it('re-analyzes results saved before signatures existed', () => {
+		const { reuse, todo } = splitForAnalysis([file('a')], [result('a')], SIG);
+		expect(reuse).toEqual([]);
+		expect(todo.map((f) => f.id)).toEqual(['a']);
+	});
+
+	it('drops results for files that are gone', () => {
+		const existing = [result('a', SIG), result('gone', SIG)];
+		const { reuse, todo } = splitForAnalysis([file('a')], existing, SIG);
+		expect(reuse.map((r) => r.fileId)).toEqual(['a']);
+		expect(todo).toEqual([]);
+	});
+});
