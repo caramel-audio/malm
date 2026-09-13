@@ -3,6 +3,9 @@ import { defineConfig, devices } from '@playwright/test';
 const desktop = { viewport: { width: 1440, height: 900 } };
 // responsive.e2e.ts runs only on tablet/mobile; screenshot.e2e.ts only via --project=screenshot
 const desktopIgnore = ['**/screenshot.e2e.ts', '**/responsive.e2e.ts'];
+// ipad-picker.e2e.ts pins WebKit-only picker behaviour; it forces browserName
+// itself, so running it under chromium/firefox would just repeat the same run.
+const webkitOnlyIgnore = [...desktopIgnore, '**/ipad-picker.e2e.ts'];
 const smallMatch = ['**/responsive.e2e.ts', '**/projects.e2e.ts'];
 
 export default defineConfig({
@@ -24,12 +27,12 @@ export default defineConfig({
 	projects: [
 		{
 			name: 'chromium',
-			testIgnore: desktopIgnore,
+			testIgnore: webkitOnlyIgnore,
 			use: { ...devices['Desktop Chrome'], ...desktop }
 		},
 		{
 			name: 'firefox',
-			testIgnore: desktopIgnore,
+			testIgnore: webkitOnlyIgnore,
 			use: { ...devices['Desktop Firefox'], ...desktop }
 		},
 		{

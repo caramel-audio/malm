@@ -1,11 +1,9 @@
-// Audio file type helpers for the file picker.
+// Audio file type helpers.
 //
-// iOS/iPadOS Safari maps an `accept` list to UTIs and greys out every document
-// it cannot classify. `accept="audio/*"` in particular leaves most of the Files
-// app unselectable there, so we send an explicit list of MIME types plus
-// extensions, and drop `accept` entirely on iOS-like platforms where even the
-// explicit list is unreliable. Anything that slips through is filtered by
-// extension/MIME here and, ultimately, by whether it decodes.
+// The file input carries no `accept` attribute: iOS/iPadOS Safari turns that
+// list into UTIs and greys out every document it cannot match, which is what
+// made audio files unselectable on iPad. Filtering happens here instead —
+// by extension/MIME first, then by whether the file actually decodes.
 
 export const AUDIO_EXTENSIONS = [
 	'mp3',
@@ -50,19 +48,6 @@ const AUDIO_MIME_TYPES = [
 	'audio/x-caf',
 	'audio/webm'
 ];
-
-/** `accept` value for non-iOS browsers: explicit MIME types and extensions. */
-export const AUDIO_ACCEPT = [...AUDIO_MIME_TYPES, ...AUDIO_EXTENSIONS.map((ext) => `.${ext}`)].join(
-	','
-);
-
-/** iPadOS 13+ reports itself as macOS, so touch points are part of the test. */
-export function isIosLike(): boolean {
-	if (typeof navigator === 'undefined') return false;
-	const ua = navigator.userAgent;
-	if (/iPad|iPhone|iPod/.test(ua)) return true;
-	return /Macintosh/.test(ua) && navigator.maxTouchPoints > 1;
-}
 
 export function extensionOf(fileName: string): string {
 	const idx = fileName.lastIndexOf('.');

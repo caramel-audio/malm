@@ -11,7 +11,7 @@
 	import { resetAnalysis } from '$lib/state/analysis.svelte';
 	import { results, setResults, clearResults, markResultsStale } from '$lib/state/results.svelte';
 	import { updateProjectMeta } from '$lib/state/project.svelte';
-	import { loadAudioFiles, loadResults, saveResults } from '$lib/storage/opfs';
+	import { isStorageAvailable, loadAudioFiles, loadResults, saveResults } from '$lib/storage/opfs';
 	import { toggle } from '$lib/audio/transport.svelte';
 	import { stop } from '$lib/audio/playback.svelte';
 	import TransportBar from '$lib/components/TransportBar.svelte';
@@ -83,8 +83,12 @@
 		if (!isLoaded || snapshot.length === 0) return;
 		clearTimeout(resultsSaveTimer);
 		resultsSaveTimer = setTimeout(async () => {
-			await saveResults(id, snapshot);
-			updateProjectMeta(id, { updatedAt: Date.now() });
+			try {
+				await saveResults(id, snapshot);
+				updateProjectMeta(id, { updatedAt: Date.now() });
+			} catch (e) {
+				console.warn('Could not persist results:', e);
+			}
 		}, 500);
 	});
 
@@ -107,6 +111,12 @@
 		try {
 			setCurrentProjectId(id);
 			loadOptionsForProject(id);
+
+			if (!isStorageAvailable()) {
+				loadError = 'This browser cannot store audio — files stay in memory for this session.';
+				isLoaded = true;
+				return;
+			}
 
 			const audioFiles = await loadAudioFiles(id);
 			if (audioFiles.length > 0) {
@@ -147,8 +157,10 @@
 
 			isLoaded = true;
 		} catch (e) {
+			// Storage can be unavailable (iOS private browsing) or a read can fail.
+			// Keep the project usable in memory instead of blocking the whole page.
 			console.error('Failed to load project:', e);
-			loadError = 'Failed to load project data.';
+			loadError = 'Saved data could not be loaded — this session will not be stored.';
 			isLoaded = true;
 		}
 	}
@@ -169,11 +181,15 @@
 	<div class="relative flex min-h-0 flex-1 flex-col overflow-hidden">
 		{#if !isLoaded}
 			<BusyOverlay label="Loading project" />
-		{:else if loadError}
-			<div class="flex h-full items-center justify-center py-24 text-xs text-danger-400">
-				{loadError}
-			</div>
 		{:else}
+			{#if loadError}
+				<div
+					class="shrink-0 border-b border-gray-700 px-3 py-2 text-center text-xs text-danger-400"
+					role="alert"
+				>
+					{loadError}
+				</div>
+			{/if}
 			{@render children()}
 		{/if}
 	</div>

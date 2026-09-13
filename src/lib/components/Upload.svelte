@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import {
 		files,
 		addFiles,
@@ -9,7 +8,6 @@
 		pinnedFirst
 	} from '$lib/state/files.svelte';
 	import { options } from '$lib/state/options.svelte';
-	import { AUDIO_ACCEPT, isIosLike } from '$lib/audio/formats';
 	import { getStorageEstimate, requestPersistentStorage } from '$lib/storage/opfs';
 	import { formatBytes } from '$lib/format';
 
@@ -27,13 +25,6 @@
 	// Quota confirmation: set when the incoming batch does not fit in the space
 	// the browser reports as available.
 	let pending = $state<{ list: File[]; needed: number; available: number } | null>(null);
-
-	// iOS/iPadOS Safari greys out anything its UTI mapping doesn't recognise, so
-	// there we omit `accept` and filter the selection ourselves.
-	let accept = $state<string | undefined>(AUDIO_ACCEPT);
-	onMount(() => {
-		if (isIosLike()) accept = undefined;
-	});
 
 	// Display order: the pinned track first. Drag and drop still works on the
 	// real positions in files.list.
@@ -240,13 +231,17 @@
 	</div>
 
 	<!--
+		Deliberately no `accept`: it is the only thing that can grey out entries in
+		the iOS/iPadOS document picker, and WebKit's UTI mapping disables audio
+		files (mp3, flac, …) whether the list is `audio/*`, explicit MIME types or
+		extensions. Selection is validated in `addFiles` instead.
+
 		Visually hidden rather than `hidden`/`display:none`: Safari refuses to open
 		the picker for an input that isn't rendered.
 	-->
 	<input
 		bind:this={inputEl}
 		type="file"
-		{accept}
 		multiple
 		class="sr-only"
 		tabindex="-1"
@@ -256,7 +251,6 @@
 	<input
 		bind:this={replaceInputEl}
 		type="file"
-		{accept}
 		class="sr-only"
 		tabindex="-1"
 		aria-hidden="true"
