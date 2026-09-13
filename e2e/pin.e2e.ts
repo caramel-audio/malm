@@ -95,6 +95,33 @@ test.describe('pinned track', () => {
 		await expect(page.getByTestId('plot-scroll').getByTestId('plot')).toHaveCount(1);
 	});
 
+	test('a track can be pinned from the analysis tab', async ({ page }) => {
+		test.slow();
+		await seedProject(page, [SHORT_WAV, SHORT_WAV2]);
+		await runAnalysis(page);
+		await expect(page.getByTestId('pinned-plot')).toHaveCount(0);
+
+		await page.getByRole('button', { name: /^Pin pinknoise/ }).click();
+		await expect(page.getByTestId('pinned-plot')).toContainText('pinknoise');
+		// and unpinning from here puts it back in the scroll area
+		await page.getByRole('button', { name: /^Unpin pinknoise/ }).click();
+		await expect(page.getByTestId('pinned-plot')).toHaveCount(0);
+		await expect(page.getByTestId('plot-scroll').getByTestId('plot')).toHaveCount(2);
+	});
+
+	test('the analysis header puts the artist next to the title', async ({ page }) => {
+		test.slow();
+		await seedProject(page, ['sine440-tagged-5s.mp3']);
+		await runAnalysis(page);
+		const title = page.getByText('Test Song', { exact: true });
+		const artist = page.getByText('Test Artist', { exact: true });
+		const t = (await title.boundingBox())!;
+		const a = (await artist.boundingBox())!;
+		expect(a.x).toBeGreaterThanOrEqual(t.x + t.width - 1);
+		// sits right after the title, not pushed to the far right of the row
+		expect(a.x - (t.x + t.width)).toBeLessThan(40);
+	});
+
 	test('the pin survives a reload', async ({ page }) => {
 		await seedProject(page, [SHORT_WAV, SHORT_WAV2]);
 		await page.getByRole('button', { name: /^Pin pinknoise/ }).click();

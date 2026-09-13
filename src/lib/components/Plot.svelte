@@ -4,6 +4,7 @@
 	import { nearestValue, type FileResult } from '$lib/state/results.svelte';
 	import { playback } from '$lib/audio/playback.svelte';
 	import { transport, playTrack } from '$lib/audio/transport.svelte';
+	import { options } from '$lib/state/options.svelte';
 	import { formatTime, lufsColor } from '$lib/format';
 
 	type Props = {
@@ -15,6 +16,8 @@
 	};
 
 	let { audioFile, result, selectedBand, loudnessType, lufsOffset = 0 }: Props = $props();
+
+	const pinned = $derived(options.pinnedFileId === audioFile.id);
 
 	let container: HTMLDivElement;
 	let containerWidth = $state(0);
@@ -236,19 +239,30 @@
 
 <div class="border-b border-gray-700">
 	<div class="flex items-center gap-3 border-b border-gray-800 px-3 py-2">
+		<button
+			class="shrink-0 {pinned ? 'text-secondary-400' : 'text-gray-700 hover:text-gray-400'}"
+			onclick={() => (options.pinnedFileId = pinned ? null : audioFile.id)}
+			aria-label="{pinned ? 'Unpin' : 'Pin'} {audioFile.name}"
+		>
+			<svg viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4" aria-hidden="true">
+				<path d="M14 2l8 8-3 1-3 3-1 6-3-4-5 5-1 1 1-2 5-5-4-3 6-1 3-3z" />
+			</svg>
+		</button>
 		{#if lufsOffset !== 0}
 			<span class="shrink-0 font-mono text-xs text-gray-400"
 				>{lufsOffset > 0 ? '+' : ''}{lufsOffset.toFixed(1)} dB</span
 			>
 		{/if}
 		<span
-			class="min-w-0 flex-1 truncate text-xs font-bold tracking-widest text-secondary-400 uppercase"
+			class="max-w-[50%] truncate text-xs font-bold tracking-widest text-secondary-400 uppercase"
 			>{audioFile.name}</span
 		>
 		{#if audioFile.artist}
-			<span class="shrink-0 text-xs tracking-widest text-gray-500 uppercase"
+			<span class="min-w-0 flex-1 truncate text-xs tracking-widest text-gray-500 uppercase"
 				>{audioFile.artist}</span
 			>
+		{:else}
+			<span class="flex-1"></span>
 		{/if}
 		{#if integratedLufs !== undefined && isFinite(integratedLufs)}
 			<span class="shrink-0 font-mono text-xs text-gray-400"
