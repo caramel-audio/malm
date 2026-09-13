@@ -22,8 +22,8 @@ test('setup page: nav tabs usable, no overflow', async ({ page }) => {
 	await seedProject(page, [TINY_WAV]);
 	await noHorizontalOverflow(page);
 	// Desktop tab row on sm+, dedicated second row below sm — getByRole only sees the
-	// rendered one, so exactly one Analysis tab is visible and clickable either way
-	const tab = page.getByRole('link', { name: 'Analysis' });
+	// rendered one, so exactly one LUFS tab is visible and clickable either way
+	const tab = page.getByRole('link', { name: 'LUFS' });
 	await expect(tab).toHaveCount(1);
 	await tab.click();
 	await page.waitForURL(/\/analysis$/);
