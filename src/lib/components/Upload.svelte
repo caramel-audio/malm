@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { files, addFiles, removeFile, reorderFiles } from '$lib/state/files.svelte';
+	import { files, addFiles, removeFile, reorderFiles, pinnedFirst } from '$lib/state/files.svelte';
+	import { options } from '$lib/state/options.svelte';
 	import { AUDIO_ACCEPT, isIosLike } from '$lib/audio/formats';
 	import { getStorageEstimate, requestPersistentStorage } from '$lib/storage/opfs';
 	import { formatBytes } from '$lib/format';
@@ -21,6 +22,11 @@
 	onMount(() => {
 		if (isIosLike()) accept = undefined;
 	});
+
+	// Display order: the pinned track first. Drag and drop still works on the
+	// real positions in files.list.
+	const ordered = $derived(pinnedFirst(files.list, options.pinnedFileId));
+	const realIndex = (id: string) => files.list.findIndex((f) => f.id === id);
 
 	let dragSrcIndex = $state<number | null>(null);
 
@@ -194,12 +200,14 @@
 
 	<!-- File list -->
 	<ul class="min-h-0 overflow-y-auto">
-		{#each files.list as f, i (f.id)}
+		{#each ordered as f (f.id)}
+			{@const i = realIndex(f.id)}
+			{@const pinned = options.pinnedFileId === f.id}
 			<li
 				class="flex items-center gap-3 border-b border-gray-800 px-3 py-2 hover:bg-gray-900 {dragSrcIndex ===
 				i
 					? 'opacity-40'
-					: ''}"
+					: ''} {pinned ? 'bg-gray-900' : ''}"
 				draggable="true"
 				ondragstart={(e) => onRowDragStart(e, i)}
 				ondragover={onRowDragOver}
@@ -252,6 +260,17 @@
 						{formatDuration(f.duration)}
 					</div>
 				</div>
+
+				<!-- pin -->
+				<button
+					class="shrink-0 {pinned ? 'text-secondary-400' : 'text-gray-700 hover:text-gray-400'}"
+					onclick={() => (options.pinnedFileId = pinned ? null : f.id)}
+					aria-label="{pinned ? 'Unpin' : 'Pin'} {f.name}"
+				>
+					<svg viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4" aria-hidden="true">
+						<path d="M14 2l8 8-3 1-3 3-1 6-3-4-5 5-1 1 1-2 5-5-4-3 6-1 3-3z" />
+					</svg>
+				</button>
 
 				<!-- remove -->
 				<button

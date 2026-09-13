@@ -209,6 +209,13 @@ export async function addFiles(fileList: FileList | File[]): Promise<string[]> {
 	return skipped;
 }
 
+/** The pinned track first, everything else in its usual order. */
+export function pinnedFirst(list: AudioFile[], pinnedId: string | null): AudioFile[] {
+	if (!pinnedId) return list;
+	const pinned = list.find((f) => f.id === pinnedId);
+	return pinned ? [pinned, ...list.filter((f) => f.id !== pinnedId)] : list;
+}
+
 export function removeFile(id: string): void {
 	const idx = files.list.findIndex((f) => f.id === id);
 	if (idx !== -1) {

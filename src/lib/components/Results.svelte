@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { files } from '$lib/state/files.svelte';
-	import { results, lufsOffset, quietestFileId } from '$lib/state/results.svelte';
+	import { files, type AudioFile } from '$lib/state/files.svelte';
+	import { results, lufsOffset, quietestFileId, type FileResult } from '$lib/state/results.svelte';
 	import { options } from '$lib/state/options.svelte';
 	import Plot from './Plot.svelte';
 	import BusyOverlay from './BusyOverlay.svelte';
@@ -48,10 +48,28 @@
 		);
 	});
 
+	const pinnedPlot = $derived.by(() => {
+		const audioFile = files.list.find((f) => f.id === options.pinnedFileId);
+		const result = audioFile && results.data.find((r) => r.fileId === audioFile.id);
+		return audioFile && result ? { audioFile, result } : null;
+	});
+
+	const unpinned = $derived(files.list.filter((f) => f.id !== pinnedPlot?.audioFile.id));
+
 	function bandLabel(label: string): string {
 		return label === 'full' ? 'Full' : label;
 	}
 </script>
+
+{#snippet plot(audioFile: AudioFile, result: FileResult)}
+	<Plot
+		{audioFile}
+		{result}
+		selectedBand={applied.band}
+		loudnessType={applied.loudnessType}
+		lufsOffset={applied.normalize ? lufsOffset(audioFile.id) : 0}
+	/>
+{/snippet}
 
 {#snippet bandSelector()}
 	<div>
@@ -144,37 +162,38 @@
 			{/if}
 		</div>
 
-		<!-- Plots area -->
-		<div class="relative min-w-0 flex-1 overflow-y-auto">
+		<!-- Plots area: the pinned track sits above the scroll box so it stays put -->
+		<div class="relative flex min-w-0 flex-1 flex-col">
 			{#if busy}
 				<BusyOverlay label="Redrawing" />
 			{/if}
-			{#if files.list.length === 0}
-				<div
-					class="flex h-full items-center justify-center text-xs tracking-widest text-gray-500 uppercase"
-				>
-					No files loaded
+			{#if pinnedPlot}
+				<div class="shrink-0 border-b-2 border-gray-700" data-testid="pinned-plot">
+					{@render plot(pinnedPlot.audioFile, pinnedPlot.result)}
 				</div>
-			{:else if results.data.length === 0}
-				<div
-					class="flex h-full items-center justify-center text-xs tracking-widest text-gray-500 uppercase"
-				>
-					Press Analyze to start
-				</div>
-			{:else}
-				{#each files.list as audioFile (audioFile.id)}
-					{@const result = results.data.find((r) => r.fileId === audioFile.id)}
-					{#if result}
-						<Plot
-							{audioFile}
-							{result}
-							selectedBand={applied.band}
-							loudnessType={applied.loudnessType}
-							lufsOffset={applied.normalize ? lufsOffset(audioFile.id) : 0}
-						/>
-					{/if}
-				{/each}
 			{/if}
+			<div class="min-h-0 flex-1 overflow-y-auto" data-testid="plot-scroll">
+				{#if files.list.length === 0}
+					<div
+						class="flex h-full items-center justify-center text-xs tracking-widest text-gray-500 uppercase"
+					>
+						No files loaded
+					</div>
+				{:else if results.data.length === 0}
+					<div
+						class="flex h-full items-center justify-center text-xs tracking-widest text-gray-500 uppercase"
+					>
+						Press Analyze to start
+					</div>
+				{:else}
+					{#each unpinned as audioFile (audioFile.id)}
+						{@const result = results.data.find((r) => r.fileId === audioFile.id)}
+						{#if result}
+							{@render plot(audioFile, result)}
+						{/if}
+					{/each}
+				{/if}
+			</div>
 		</div>
 	</div>
 	<!-- end desktop flex row -->

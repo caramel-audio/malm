@@ -62,6 +62,7 @@
 		void options.frequencies.join(',');
 		void options.slope;
 		void options.selectedBand;
+		void options.pinnedFileId;
 		void options.loudnessType;
 		void options.normalizeToQuietest;
 		const id = projectId;

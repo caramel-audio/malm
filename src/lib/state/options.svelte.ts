@@ -9,6 +9,8 @@ export const options = $state({
 	frequencies: [...DEFAULT_FREQUENCIES],
 	slope: DEFAULT_SLOPE as Slope,
 	selectedBand: 'full',
+	// Track kept at the top of the list and out of the scroll area.
+	pinnedFileId: null as string | null,
 	loudnessType: 'momentary' as 'momentary' | 'shortTerm',
 	normalizeToQuietest: false
 });
@@ -17,6 +19,7 @@ export function resetOptions(): void {
 	options.frequencies = [...DEFAULT_FREQUENCIES];
 	options.slope = DEFAULT_SLOPE;
 	options.selectedBand = 'full';
+	options.pinnedFileId = null;
 	options.loudnessType = 'momentary';
 	options.normalizeToQuietest = false;
 }
@@ -37,6 +40,7 @@ export function loadOptionsForProject(projectId: string): void {
 		}
 		if (SLOPES.includes(parsed.slope)) options.slope = parsed.slope;
 		if (typeof parsed.selectedBand === 'string') options.selectedBand = parsed.selectedBand;
+		if (typeof parsed.pinnedFileId === 'string') options.pinnedFileId = parsed.pinnedFileId;
 		if (parsed.loudnessType === 'momentary' || parsed.loudnessType === 'shortTerm')
 			options.loudnessType = parsed.loudnessType;
 		if (typeof parsed.normalizeToQuietest === 'boolean')
@@ -52,6 +56,7 @@ export function saveOptionsForProject(projectId: string): void {
 				frequencies: options.frequencies,
 				slope: options.slope,
 				selectedBand: options.selectedBand,
+				pinnedFileId: options.pinnedFileId,
 				loudnessType: options.loudnessType,
 				normalizeToQuietest: options.normalizeToQuietest
 			})
