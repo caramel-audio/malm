@@ -65,6 +65,14 @@ test.describe('upload', () => {
 		await expect(page.locator('ul li')).toHaveCount(1);
 	});
 
+	test('replace button swaps a track in place', async ({ page }) => {
+		await seedProject(page, [SHORT_WAV, TINY_WAV]);
+		await page.getByRole('button', { name: `Replace ${SHORT_WAV.replace(/\.wav$/, '')}` }).click();
+		await page.locator('input[type=file]:not([multiple])').setInputFiles(fx(SHORT_WAV2));
+		await expect(row(page, 0)).toContainText('pinknoise');
+		await expect(page.locator('ul li')).toHaveCount(2);
+	});
+
 	test('drag row to reorder', async ({ page }) => {
 		await seedProject(page, [SHORT_WAV]);
 		await uploadFiles(page, SHORT_WAV2);
@@ -92,13 +100,13 @@ test.describe('upload', () => {
 
 	test('corrupt file shows an error instead of hanging', async ({ page }) => {
 		await seedProject(page, []);
-		await page.locator('input[type=file]').setInputFiles(fx('corrupt.wav'));
+		await page.locator('input[type=file][multiple]').setInputFiles(fx('corrupt.wav'));
 		await expect(page.getByText('LOADING...')).toBeHidden({ timeout: 10_000 });
 	});
 
 	test('non-audio file shows an error instead of hanging', async ({ page }) => {
 		await seedProject(page, []);
-		await page.locator('input[type=file]').setInputFiles(fx('notaudio.txt'));
+		await page.locator('input[type=file][multiple]').setInputFiles(fx('notaudio.txt'));
 		await expect(page.getByText('LOADING...')).toBeHidden({ timeout: 10_000 });
 	});
 });

@@ -26,7 +26,7 @@ export async function createProject(page: Page, name = 'Test Project'): Promise<
 /** Upload fixture files via the hidden file input and wait for track rows. */
 export async function uploadFiles(page: Page, ...names: string[]): Promise<void> {
 	const before = await page.locator('ul li').count();
-	await page.locator('input[type=file]').setInputFiles(names.map(fx));
+	await page.locator('input[type=file][multiple]').setInputFiles(names.map(fx));
 	await expect(page.locator('ul li')).toHaveCount(before + names.length, { timeout: 30_000 });
 	await expect(page.getByText('LOADING...')).toBeHidden();
 }

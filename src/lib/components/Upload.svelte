@@ -1,13 +1,25 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { files, addFiles, removeFile, reorderFiles, pinnedFirst } from '$lib/state/files.svelte';
+	import {
+		files,
+		addFiles,
+		removeFile,
+		reorderFiles,
+		replaceFile,
+		pinnedFirst
+	} from '$lib/state/files.svelte';
 	import { options } from '$lib/state/options.svelte';
 	import { AUDIO_ACCEPT, isIosLike } from '$lib/audio/formats';
 	import { getStorageEstimate, requestPersistentStorage } from '$lib/storage/opfs';
 	import { formatBytes } from '$lib/format';
 
 	let inputEl: HTMLInputElement;
+	let replaceInputEl: HTMLInputElement;
+	let replaceTargetId: string | null = null;
 	let dragOver = $state(false);
+	// True while the OS is dragging files anywhere over this panel — rows then
+	// offer themselves as replace targets.
+	let externalDrag = $state(false);
 	let loading = $state(false);
 	let skipped = $state<string[]>([]);
 	let error = $state<string | null>(null);
@@ -121,9 +133,51 @@
 		await runUpload(list);
 	}
 
+	async function runReplace(id: string, file: File) {
+		loading = true;
+		error = null;
+		try {
+			skipped = await replaceFile(id, file);
+		} catch (e) {
+			error =
+				e instanceof DOMException && e.name === 'QuotaExceededError'
+					? 'Storage full — the replacement was not saved. Free space or delete a project.'
+					: `Replace failed: ${e instanceof Error ? e.message : String(e)}`;
+		} finally {
+			loading = false;
+		}
+	}
+
+	function onReplaceInputChange(e: Event) {
+		const input = e.currentTarget as HTMLInputElement;
+		const file = input.files?.[0];
+		if (file && replaceTargetId) runReplace(replaceTargetId, file);
+		input.value = '';
+		replaceTargetId = null;
+	}
+
+	function startReplace(id: string) {
+		replaceTargetId = id;
+		replaceInputEl.click();
+	}
+
+	function hasFiles(e: DragEvent): boolean {
+		return e.dataTransfer?.types?.includes('Files') ?? false;
+	}
+
+	function onPanelDragOver(e: DragEvent) {
+		if (hasFiles(e)) externalDrag = true;
+	}
+
+	function onPanelDragLeave(e: DragEvent) {
+		const to = e.relatedTarget as Node | null;
+		if (!to || !(e.currentTarget as HTMLElement).contains(to)) externalDrag = false;
+	}
+
 	function onDrop(e: DragEvent) {
 		e.preventDefault();
 		dragOver = false;
+		externalDrag = false;
 		if (e.dataTransfer?.files?.length) handleFiles(e.dataTransfer.files);
 	}
 
@@ -150,11 +204,17 @@
 
 	function onRowDragOver(e: DragEvent) {
 		e.preventDefault();
-		e.dataTransfer!.dropEffect = 'move';
+		e.dataTransfer!.dropEffect = hasFiles(e) ? 'copy' : 'move';
 	}
 
-	function onRowDrop(e: DragEvent, index: number) {
+	function onRowDrop(e: DragEvent, index: number, id: string) {
 		e.preventDefault();
+		externalDrag = false;
+		const dropped = e.dataTransfer?.files?.[0];
+		if (dropped) {
+			runReplace(id, dropped);
+			return;
+		}
 		if (dragSrcIndex !== null && dragSrcIndex !== index) {
 			reorderFiles(dragSrcIndex, index);
 		}
@@ -166,7 +226,13 @@
 	}
 </script>
 
-<section class="flex h-full flex-col">
+<section
+	class="flex h-full flex-col"
+	aria-label="Files"
+	ondragover={onPanelDragOver}
+	ondragleave={onPanelDragLeave}
+	ondrop={() => (externalDrag = false)}
+>
 	<div
 		class="border-b border-gray-700 px-3 py-2 text-xs tracking-widest text-secondary-400 uppercase"
 	>
@@ -187,6 +253,15 @@
 		aria-hidden="true"
 		onchange={onInputChange}
 	/>
+	<input
+		bind:this={replaceInputEl}
+		type="file"
+		{accept}
+		class="sr-only"
+		tabindex="-1"
+		aria-hidden="true"
+		onchange={onReplaceInputChange}
+	/>
 
 	{#if error}
 		<p class="mx-3 mb-2 text-xs text-danger-400">{error}</p>
@@ -204,16 +279,24 @@
 			{@const i = realIndex(f.id)}
 			{@const pinned = options.pinnedFileId === f.id}
 			<li
-				class="flex items-center gap-3 border-b border-gray-800 px-3 py-2 hover:bg-gray-900 {dragSrcIndex ===
+				class="relative flex items-center gap-3 border-b border-gray-800 px-3 py-2 hover:bg-gray-900 {dragSrcIndex ===
 				i
 					? 'opacity-40'
 					: ''} {pinned ? 'bg-gray-900' : ''}"
 				draggable="true"
 				ondragstart={(e) => onRowDragStart(e, i)}
 				ondragover={onRowDragOver}
-				ondrop={(e) => onRowDrop(e, i)}
+				ondrop={(e) => onRowDrop(e, i, f.id)}
 				ondragend={onRowDragEnd}
 			>
+				{#if externalDrag}
+					<!-- pointer-events-none: the drop must still land on the row itself -->
+					<div
+						class="pointer-events-none absolute inset-1 z-10 flex items-center justify-center border border-dashed border-secondary-400 bg-gray-950/80 text-xs tracking-widest text-secondary-400 uppercase"
+					>
+						Replace
+					</div>
+				{/if}
 				<!-- drag handle -->
 				<span class="shrink-0 cursor-grab text-gray-500 select-none">⠿</span>
 
@@ -260,6 +343,13 @@
 						{formatDuration(f.duration)}
 					</div>
 				</div>
+
+				<!-- replace -->
+				<button
+					class="shrink-0 border border-gray-700 px-2 py-1 text-xs tracking-widest text-gray-400 uppercase transition-colors hover:border-secondary-400 hover:text-secondary-400"
+					onclick={() => startReplace(f.id)}
+					aria-label="Replace {f.name}">Replace</button
+				>
 
 				<!-- pin -->
 				<button

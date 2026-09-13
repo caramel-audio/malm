@@ -3,6 +3,7 @@ import { saveAudioFile, removeAudioFile, reorderAudioFiles } from '$lib/storage/
 import { updateProjectMeta } from '$lib/state/project.svelte';
 import { isLikelyAudioFile, mimeTypeFor } from '$lib/audio/formats';
 import { probeAudio } from '$lib/audio/decode';
+import { options } from '$lib/state/options.svelte';
 
 export type AudioFile = {
 	id: string;
@@ -206,6 +207,26 @@ export async function addFiles(fileList: FileList | File[]): Promise<string[]> {
 		}
 	}
 
+	return skipped;
+}
+
+/**
+ * Swaps one track for a new file, keeping its position (and pin). Returns the
+ * skipped names from addFiles — non-empty means the new file was unusable and
+ * the old one is left untouched.
+ */
+export async function replaceFile(id: string, file: File): Promise<string[]> {
+	const idx = files.list.findIndex((f) => f.id === id);
+	if (idx === -1) return [file.name];
+
+	const before = files.list.length;
+	const skipped = await addFiles([file]);
+	if (files.list.length === before) return skipped;
+
+	const added = files.list[files.list.length - 1];
+	removeFile(id);
+	reorderFiles(files.list.length - 1, idx);
+	if (options.pinnedFileId === id) options.pinnedFileId = added.id;
 	return skipped;
 }
 
