@@ -100,18 +100,41 @@
 		return stops[stops.length - 1][1];
 	}
 
-	function waveformEnvelope(buffer: AudioBuffer, width: number): { min: number; max: number }[] {
-		const data = buffer.getChannelData(0);
-		const spp = Math.max(1, Math.floor(data.length / width));
+	// Rebucket the stored 100 ms min/max peak file down to one entry per pixel.
+	function waveformEnvelope(
+		waveform: [number, number][],
+		width: number
+	): { min: number; max: number }[] {
+		const per = waveform.length / width;
 		return Array.from({ length: width }, (_, i) => {
+			const start = Math.floor(i * per);
+			const end = Math.max(start + 1, Math.floor((i + 1) * per));
 			let min = 0,
 				max = 0;
-			for (let j = i * spp, end = Math.min(j + spp, data.length); j < end; j++) {
-				if (data[j] < min) min = data[j];
-				if (data[j] > max) max = data[j];
+			for (let j = start; j < end && j < waveform.length; j++) {
+				if (waveform[j][0] < min) min = waveform[j][0];
+				if (waveform[j][1] > max) max = waveform[j][1];
 			}
 			return { min, max };
 		});
+	}
+
+	// One point per pixel bucket, keeping the loudest — a 3 h track has ~108k
+	// points and drawing a line segment per point locks up the browser.
+	function decimateLufs(data: [number, number][], width: number): [number, number][] {
+		if (data.length <= width * 2 || width <= 0) return data;
+		const per = data.length / width;
+		const out: [number, number][] = [];
+		for (let i = 0; i < width; i++) {
+			const start = Math.floor(i * per);
+			const end = Math.max(start + 1, Math.floor((i + 1) * per));
+			let best = data[start];
+			for (let j = start + 1; j < end && j < data.length; j++) {
+				if (data[j][1] > best[1]) best = data[j];
+			}
+			out.push(best);
+		}
+		return out;
 	}
 
 	$effect(() => {
@@ -124,26 +147,27 @@
 		untrack(() => {
 			if (!playback.isPlaying || playback.currentFileId !== audioFile.id) return;
 			const freqBand = bands.find((b) => b.label === band) ?? null;
-			if (audioFile.buffer)
-				play(
-					audioFile.id,
-					audioFile.buffer,
-					freqBand,
-					playback.currentTime,
-					lufsOffset + bandPlaybackGainDb
-				);
+			play(
+				audioFile.id,
+				audioFile.file,
+				freqBand,
+				playback.currentTime,
+				lufsOffset + bandPlaybackGainDb
+			);
 		});
 	});
 
 	$effect(() => {
-		if (!container || !audioFile.buffer) return;
+		if (!container) return;
 
 		const width = container.clientWidth;
 		const innerW = width - MARGIN.left - MARGIN.right;
 		const innerH = HEIGHT - MARGIN.top - MARGIN.bottom;
 
 		const offset = lufsOffset;
-		const lufsData = loudnessData.map(([t, v]) => [t, v + offset] as [number, number]);
+		const lufsData = decimateLufs(loudnessData, innerW).map(
+			([t, v]) => [t, v + offset] as [number, number]
+		);
 		const br = bandResult;
 
 		d3.select(container).selectAll('svg').remove();
@@ -196,15 +220,17 @@
 					.style('font-size', '10px')
 			);
 
-		// Waveform
-		const envelope = waveformEnvelope(audioFile.buffer!, innerW);
-		const areaGen = d3
-			.area<{ min: number; max: number }>()
-			.x((_, i) => i)
-			.y0((d) => yWave(d.min))
-			.y1((d) => yWave(d.max));
+		// Waveform (absent from results saved before streaming analysis)
+		if (result.waveform?.length) {
+			const envelope = waveformEnvelope(result.waveform, innerW);
+			const areaGen = d3
+				.area<{ min: number; max: number }>()
+				.x((_, i) => i)
+				.y0((d) => yWave(d.min))
+				.y1((d) => yWave(d.max));
 
-		g.append('path').datum(envelope).attr('d', areaGen).attr('fill', '#333333');
+			g.append('path').datum(envelope).attr('d', areaGen).attr('fill', '#333333');
+		}
 
 		// Loudness colored segments
 		if (lufsData.length > 1) {
@@ -259,14 +285,13 @@
 			.on('click', (event) => {
 				const [mx] = d3.pointer(event);
 				const offsetSeconds = Math.max(0, xScale.invert(mx));
-				if (audioFile.buffer)
-					play(
-						audioFile.id,
-						audioFile.buffer,
-						currentBand,
-						offsetSeconds,
-						lufsOffset + bandPlaybackGainDb
-					);
+				play(
+					audioFile.id,
+					audioFile.file,
+					currentBand,
+					offsetSeconds,
+					lufsOffset + bandPlaybackGainDb
+				);
 			})
 			.on('mousemove', (event) => {
 				const [mx] = d3.pointer(event);
@@ -301,8 +326,7 @@
 				if (isThisFileActive) {
 					togglePlayPause();
 				} else {
-					if (audioFile.buffer)
-						play(audioFile.id, audioFile.buffer, currentBand, 0, lufsOffset + bandPlaybackGainDb);
+					play(audioFile.id, audioFile.file, currentBand, 0, lufsOffset + bandPlaybackGainDb);
 				}
 			}}
 		>

@@ -1,12 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { untrack } from 'svelte';
-	import {
-		files,
-		setCurrentProjectId,
-		extractMetadata,
-		sampleRateFromBuffer
-	} from '$lib/state/files.svelte';
+	import { files, setCurrentProjectId, extractMetadata } from '$lib/state/files.svelte';
 	import {
 		options,
 		loadOptionsForProject,
@@ -105,34 +100,30 @@
 
 			const audioFiles = await loadAudioFiles(id);
 			if (audioFiles.length > 0) {
-				const ctx = new AudioContext();
-				const loaded = await Promise.all(
-					audioFiles.map(async ({ meta, arrayBuffer }) => {
-						const file = new File([arrayBuffer], meta.fileName, {
+				// No decode on load: duration/sampleRate come from the manifest, and the
+				// OPFS File is only read when metadata or analysis actually needs bytes.
+				files.list = await Promise.all(
+					audioFiles.map(async ({ meta, file: stored }) => {
+						// Rewrap so the name/MIME match the original upload (cheap — the
+						// File references the blob, it does not copy it).
+						const file = new File([stored], meta.fileName, {
 							type: meta.mimeType || 'audio/mpeg'
 						});
-						const [buffer, tags] = await Promise.all([
-							ctx.decodeAudioData(arrayBuffer.slice(0)),
-							extractMetadata(file)
-						]);
+						const tags = await extractMetadata(file);
 						return {
 							id: meta.id,
 							file,
 							name: tags.name,
 							artist: tags.artist,
 							album: tags.album,
-							duration: buffer.duration,
+							duration: meta.duration,
 							codec: tags.codec,
 							bitrate: tags.bitrate,
-							sampleRate:
-								tags.sampleRate ?? sampleRateFromBuffer(arrayBuffer, meta.mimeType, meta.fileName),
-							coverUrl: tags.coverUrl,
-							buffer
+							sampleRate: meta.sampleRate ?? tags.sampleRate,
+							coverUrl: tags.coverUrl
 						};
 					})
 				);
-				ctx.close();
-				files.list = loaded;
 			}
 
 			const savedResults = await loadResults(id);

@@ -1,3 +1,7 @@
+// Playback streams from an <audio> element instead of an AudioBuffer, so a
+// multi-hour track costs nothing in memory. The same LR4 filter pairs used by
+// analysis are applied live.
+
 import type { FreqBand } from './filters';
 
 export const playback = $state({
@@ -8,10 +12,13 @@ export const playback = $state({
 });
 
 let ctx: AudioContext | null = null;
-let source: AudioBufferSourceNode | null = null;
+let audioEl: HTMLAudioElement | null = null;
+// createMediaElementSource may only be called once per element — created with it.
+let sourceNode: MediaElementAudioSourceNode | null = null;
+let filterNodes: AudioNode[] = [];
 let gainNode: GainNode | null = null;
-let startContextTime = 0;
-let startOffset = 0;
+let objectUrl: string | null = null;
+let loadedFileId: string | null = null;
 let rafId: number | null = null;
 
 function addFilterPair(
@@ -30,79 +37,104 @@ function addFilterPair(
 	f2.Q.value = Math.SQRT1_2;
 	prev.connect(f1);
 	f1.connect(f2);
+	filterNodes.push(f1, f2);
 	return f2;
 }
 
 function tick() {
-	if (ctx && playback.isPlaying) {
-		playback.currentTime = startOffset + (ctx.currentTime - startContextTime);
+	if (audioEl && playback.isPlaying) {
+		playback.currentTime = audioEl.currentTime;
 		rafId = requestAnimationFrame(tick);
 	}
 }
 
-export function play(
-	fileId: string,
-	buffer: AudioBuffer,
-	band: FreqBand | null,
-	offsetSeconds: number,
-	gainDb = 0
-): void {
-	stop();
+function reset() {
+	if (rafId !== null) cancelAnimationFrame(rafId);
+	rafId = null;
+	playback.isPlaying = false;
+	playback.isPaused = false;
+	playback.currentFileId = null;
+	playback.currentTime = 0;
+}
 
+function ensureGraph(): { ctx: AudioContext; audioEl: HTMLAudioElement } {
 	if (!ctx) ctx = new AudioContext();
-	if (ctx.state === 'suspended') ctx.resume();
+	if (!audioEl) {
+		audioEl = new Audio();
+		audioEl.preload = 'metadata';
+		audioEl.addEventListener('ended', reset);
+		sourceNode = ctx.createMediaElementSource(audioEl);
+	}
+	return { ctx, audioEl };
+}
 
-	source = ctx.createBufferSource();
-	source.buffer = buffer;
+function rebuildChain(ctx: AudioContext, band: FreqBand | null, gainDb: number) {
+	sourceNode!.disconnect();
+	for (const n of filterNodes) n.disconnect();
+	filterNodes = [];
+	gainNode?.disconnect();
 
 	gainNode = ctx.createGain();
 	gainNode.gain.value = Math.pow(10, gainDb / 20);
 
-	let lastNode: AudioNode = source;
-	if (band && (band.lowHz !== null || band.highHz !== null)) {
-		if (band.lowHz !== null) lastNode = addFilterPair(ctx, 'highpass', band.lowHz, lastNode);
-		if (band.highHz !== null) lastNode = addFilterPair(ctx, 'lowpass', band.highHz, lastNode);
-	}
+	let lastNode: AudioNode = sourceNode!;
+	if (band?.lowHz != null) lastNode = addFilterPair(ctx, 'highpass', band.lowHz, lastNode);
+	if (band?.highHz != null) lastNode = addFilterPair(ctx, 'lowpass', band.highHz, lastNode);
 	lastNode.connect(gainNode);
 	gainNode.connect(ctx.destination);
+}
 
-	startContextTime = ctx.currentTime;
-	startOffset = Math.max(0, offsetSeconds);
+export function play(
+	fileId: string,
+	file: File,
+	band: FreqBand | null,
+	offsetSeconds: number,
+	gainDb = 0
+): void {
+	const { ctx, audioEl } = ensureGraph();
+	if (ctx.state === 'suspended') ctx.resume();
 
-	source.start(0, startOffset);
-	source.onended = () => {
-		if (rafId !== null) cancelAnimationFrame(rafId);
-		rafId = null;
-		source = null;
-		playback.isPlaying = false;
-		playback.isPaused = false;
-		playback.currentFileId = null;
-		playback.currentTime = 0;
+	if (loadedFileId !== fileId) {
+		if (objectUrl) URL.revokeObjectURL(objectUrl);
+		objectUrl = URL.createObjectURL(file);
+		loadedFileId = fileId;
+		audioEl.src = objectUrl;
+	}
+
+	rebuildChain(ctx, band, gainDb);
+
+	const offset = Math.max(0, offsetSeconds);
+	const start = () => {
+		audioEl.currentTime = offset;
+		audioEl.play();
 	};
+	// Seeking before metadata is known throws — wait for it if the src is fresh.
+	if (audioEl.readyState >= HTMLMediaElement.HAVE_METADATA) start();
+	else audioEl.addEventListener('loadedmetadata', start, { once: true });
 
+	if (rafId !== null) cancelAnimationFrame(rafId);
 	playback.currentFileId = fileId;
-	playback.currentTime = startOffset;
+	playback.currentTime = offset;
 	playback.isPlaying = true;
 	playback.isPaused = false;
-
 	rafId = requestAnimationFrame(tick);
 }
 
 export async function pause(): Promise<void> {
-	if (!ctx || !playback.isPlaying) return;
+	if (!audioEl || !playback.isPlaying) return;
 	if (rafId !== null) {
 		cancelAnimationFrame(rafId);
 		rafId = null;
 	}
-	await ctx.suspend();
+	audioEl.pause();
 	playback.isPlaying = false;
 	playback.isPaused = true;
 }
 
 export async function resume(): Promise<void> {
-	if (!ctx || !playback.isPaused) return;
-	await ctx.resume();
-	// ctx.currentTime did not advance while suspended, so startContextTime is still valid
+	if (!audioEl || !playback.isPaused) return;
+	if (ctx?.state === 'suspended') await ctx.resume();
+	await audioEl.play();
 	playback.isPlaying = true;
 	playback.isPaused = false;
 	rafId = requestAnimationFrame(tick);
@@ -120,22 +152,6 @@ export async function togglePlayPause(): Promise<void> {
 }
 
 export function stop(): void {
-	if (source) {
-		source.onended = null;
-		try {
-			source.stop();
-		} catch {
-			// already stopped
-		}
-		source.disconnect();
-		source = null;
-	}
-	gainNode = null;
-	if (rafId !== null) {
-		cancelAnimationFrame(rafId);
-		rafId = null;
-	}
-	playback.isPlaying = false;
-	playback.isPaused = false;
-	playback.currentFileId = null;
+	audioEl?.pause();
+	reset();
 }

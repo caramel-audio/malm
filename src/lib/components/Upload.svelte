@@ -2,11 +2,18 @@
 	import { onMount } from 'svelte';
 	import { files, addFiles, removeFile, reorderFiles } from '$lib/state/files.svelte';
 	import { AUDIO_ACCEPT, isIosLike } from '$lib/audio/formats';
+	import { getStorageEstimate, requestPersistentStorage } from '$lib/storage/opfs';
+	import { formatBytes } from '$lib/format';
 
 	let inputEl: HTMLInputElement;
 	let dragOver = $state(false);
 	let loading = $state(false);
 	let skipped = $state<string[]>([]);
+	let error = $state<string | null>(null);
+
+	// Quota confirmation: set when the incoming batch does not fit in the space
+	// the browser reports as available.
+	let pending = $state<{ list: File[]; needed: number; available: number } | null>(null);
 
 	// iOS/iPadOS Safari greys out anything its UTI mapping doesn't recognise, so
 	// there we omit `accept` and filter the selection ourselves.
@@ -62,13 +69,50 @@
 		return parts.join(' · ');
 	}
 
+	async function availableBytes(): Promise<number> {
+		const { usage, quota } = await getStorageEstimate();
+		return Math.max(0, quota - usage);
+	}
+
 	async function handleFiles(fileList: FileList | File[]) {
+		const list = Array.from(fileList);
+		const needed = list.reduce((sum, f) => sum + f.size, 0);
+		const available = await availableBytes();
+		// 5 % headroom: the estimate is coarse and the manifest costs a little too.
+		if (available > 0 && needed > available * 0.95) {
+			pending = { list, needed, available };
+			return;
+		}
+		await runUpload(list);
+	}
+
+	async function runUpload(list: File[]) {
+		pending = null;
 		loading = true;
+		error = null;
 		try {
-			skipped = await addFiles(fileList);
+			skipped = await addFiles(list);
+		} catch (e) {
+			error =
+				e instanceof DOMException && e.name === 'QuotaExceededError'
+					? 'Storage full — some files were not saved. Free space or delete a project.'
+					: `Upload failed: ${e instanceof Error ? e.message : String(e)}`;
 		} finally {
 			loading = false;
 		}
+	}
+
+	async function handlePersistThenUpload() {
+		if (!pending) return;
+		const list = pending.list;
+		const needed = pending.needed;
+		await requestPersistentStorage();
+		const available = await availableBytes();
+		if (needed > available * 0.95) {
+			pending = { list, needed, available };
+			return;
+		}
+		await runUpload(list);
 	}
 
 	function onDrop(e: DragEvent) {
@@ -160,6 +204,10 @@
 		onchange={onInputChange}
 	/>
 
+	{#if error}
+		<p class="mx-3 mb-2 text-xs text-danger-400">{error}</p>
+	{/if}
+
 	{#if skipped.length > 0}
 		<p class="mx-3 mb-2 text-xs text-secondary-400">
 			SKIPPED (UNSUPPORTED FORMAT): {skipped.join(', ')}
@@ -237,3 +285,45 @@
 		{/each}
 	</ul>
 </section>
+
+<!-- Storage quota warning -->
+{#if pending}
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4"
+		role="presentation"
+		onclick={(e) => {
+			if (e.target === e.currentTarget) pending = null;
+		}}
+	>
+		<div class="w-full max-w-md border border-gray-700 bg-gray-900 p-6 shadow-2xl">
+			<h2 class="mb-3 text-xs tracking-widest text-danger-400 uppercase">Not enough storage</h2>
+			<p class="mb-3 text-sm text-gray-300">
+				These files need <strong class="text-gray-100">{formatBytes(pending.needed)}</strong>, but
+				only <strong class="text-gray-100">{formatBytes(pending.available)}</strong> is available.
+			</p>
+			<p class="mb-4 text-xs text-gray-500">
+				The quota is set by the browser and no site can raise it. Freeing disk space, deleting other
+				projects, or allowing more site data in the browser settings (Brave: Settings → Privacy →
+				site data) can increase it. Requesting persistent storage only stops the browser evicting
+				what is already stored.
+			</p>
+			<div class="flex flex-wrap justify-end gap-2">
+				<button
+					onclick={() => (pending = null)}
+					class="border border-gray-700 px-4 py-1.5 text-xs tracking-widest text-gray-400 uppercase transition-colors hover:border-gray-500 hover:text-gray-300"
+					>Cancel</button
+				>
+				<button
+					onclick={handlePersistThenUpload}
+					class="border border-gray-700 px-4 py-1.5 text-xs tracking-widest text-gray-400 uppercase transition-colors hover:border-secondary-400 hover:text-secondary-400"
+					>Request persistent storage</button
+				>
+				<button
+					onclick={() => runUpload(pending!.list)}
+					class="bg-secondary-400 px-4 py-1.5 text-xs font-bold tracking-widest text-gray-950 uppercase transition-colors hover:bg-secondary-300"
+					>Upload anyway</button
+				>
+			</div>
+		</div>
+	</div>
+{/if}

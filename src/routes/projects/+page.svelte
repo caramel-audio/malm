@@ -1,7 +1,12 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { projects, createProject, deleteProject, renameProject } from '$lib/state/project.svelte';
-	import { getStorageEstimate } from '$lib/storage/opfs';
+	import {
+		getStorageEstimate,
+		isStoragePersisted,
+		requestPersistentStorage
+	} from '$lib/storage/opfs';
+	import { formatBytes } from '$lib/format';
 	import type { ProjectMeta } from '$lib/state/project.svelte';
 	import { onMount, tick } from 'svelte';
 
@@ -16,17 +21,20 @@
 
 	let storageUsage = $state(0);
 	let storageQuota = $state(0);
+	let storagePersisted = $state(false);
 
-	onMount(async () => {
+	async function refreshStorage() {
 		const est = await getStorageEstimate();
 		storageUsage = est.usage;
 		storageQuota = est.quota;
-	});
+		storagePersisted = await isStoragePersisted();
+	}
 
-	function formatBytes(bytes: number): string {
-		if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-		if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-		return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+	onMount(refreshStorage);
+
+	async function handlePersist() {
+		await requestPersistentStorage();
+		await refreshStorage();
 	}
 
 	function formatRelativeTime(ts: number): string {
@@ -71,9 +79,7 @@
 	async function confirmDelete(id: string) {
 		deleteConfirmId = null;
 		await deleteProject(id);
-		const est = await getStorageEstimate();
-		storageUsage = est.usage;
-		storageQuota = est.quota;
+		await refreshStorage();
 	}
 
 	const usageFraction = $derived(storageQuota > 0 ? Math.min(storageUsage / storageQuota, 1) : 0);
@@ -203,6 +209,17 @@
 			<span class="shrink-0 text-xs text-gray-500 tabular-nums">
 				{formatBytes(storageUsage)} / {formatBytes(storageQuota)}
 			</span>
+			{#if storagePersisted}
+				<span class="shrink-0 text-xs tracking-widest text-secondary-400 uppercase">Persistent</span
+				>
+			{:else}
+				<button
+					onclick={handlePersist}
+					title="Ask the browser not to evict stored audio. Does not raise the quota."
+					class="shrink-0 border border-gray-700 px-2 py-0.5 text-xs tracking-widest text-gray-400 uppercase transition-colors hover:border-secondary-400 hover:text-secondary-400"
+					>Persist</button
+				>
+			{/if}
 		</div>
 	{/if}
 </div>

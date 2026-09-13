@@ -79,7 +79,9 @@ export async function saveAudioFile(
 
 	const fh = await dir.getFileHandle(meta.id, { create: true });
 	const writable = await fh.createWritable();
-	await writable.write(await file.arrayBuffer());
+	// Write the Blob directly — reading it into an ArrayBuffer first would pull a
+	// multi-gigabyte track into memory.
+	await writable.write(file);
 	await writable.close();
 
 	const manifest = await loadFileManifest(projectId);
@@ -108,18 +110,18 @@ export async function reorderAudioFiles(projectId: string, orderedIds: string[])
 	await saveFileManifest(projectId, reordered);
 }
 
+/** Returns lazy OPFS `File` handles — no bytes are read until something reads them. */
 export async function loadAudioFiles(
 	projectId: string
-): Promise<{ meta: AudioFileMeta; arrayBuffer: ArrayBuffer }[]> {
+): Promise<{ meta: AudioFileMeta; file: File }[]> {
 	const dir = await getFilesDir(projectId);
 	const manifest = await loadFileManifest(projectId);
-	const results: { meta: AudioFileMeta; arrayBuffer: ArrayBuffer }[] = [];
+	const results: { meta: AudioFileMeta; file: File }[] = [];
 
 	for (const meta of manifest) {
 		try {
 			const fh = await dir.getFileHandle(meta.id);
-			const file = await fh.getFile();
-			results.push({ meta, arrayBuffer: await file.arrayBuffer() });
+			results.push({ meta, file: await fh.getFile() });
 		} catch {
 			// Skip missing files
 		}
@@ -160,4 +162,14 @@ export async function deleteProjectFiles(projectId: string): Promise<void> {
 export async function getStorageEstimate(): Promise<{ usage: number; quota: number }> {
 	const estimate = await navigator.storage.estimate();
 	return { usage: estimate.usage ?? 0, quota: estimate.quota ?? 0 };
+}
+
+// Persistence only protects stored data from eviction — no web API can raise the
+// quota itself; that is the browser's call.
+export async function requestPersistentStorage(): Promise<boolean> {
+	return navigator.storage.persist();
+}
+
+export async function isStoragePersisted(): Promise<boolean> {
+	return navigator.storage.persisted();
 }
