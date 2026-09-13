@@ -12,7 +12,8 @@
 	import { results, setResults, clearResults, markResultsStale } from '$lib/state/results.svelte';
 	import { updateProjectMeta } from '$lib/state/project.svelte';
 	import { loadAudioFiles, loadResults, saveResults } from '$lib/storage/opfs';
-	import { togglePlayPause } from '$lib/audio/playback.svelte';
+	import { toggle } from '$lib/audio/transport.svelte';
+	import TransportBar from '$lib/components/TransportBar.svelte';
 
 	let { children } = $props();
 
@@ -150,25 +151,29 @@
 			return;
 		if (event.key === ' ' || event.key === 'k') {
 			event.preventDefault();
-			togglePlayPause();
+			toggle();
 		}
 	}
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
 
-{#if !isLoaded}
-	<div
-		class="flex h-full items-center justify-center py-24 text-xs tracking-widest text-gray-600 uppercase"
-	>
-		Loading…
+<div class="flex h-full min-h-0 flex-col">
+	<div class="flex min-h-0 flex-1 flex-col overflow-hidden">
+		{#if !isLoaded}
+			<div
+				class="flex h-full items-center justify-center py-24 text-xs tracking-widest text-gray-600 uppercase"
+			>
+				Loading…
+			</div>
+		{:else if loadError}
+			<div class="flex h-full items-center justify-center py-24 text-xs text-danger-400">
+				{loadError}
+			</div>
+		{:else}
+			{@render children()}
+		{/if}
 	</div>
-{:else if loadError}
-	<div class="flex h-full items-center justify-center py-24 text-xs text-danger-400">
-		{loadError}
-	</div>
-{:else}
-	<div class="flex h-full min-h-0 flex-1 flex-col">
-		{@render children()}
-	</div>
-{/if}
+
+	<TransportBar />
+</div>

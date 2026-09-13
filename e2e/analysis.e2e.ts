@@ -14,8 +14,8 @@ import {
 // UnknownError), so every project page fails to load — nothing here can run.
 test.skip(({ browserName }) => browserName === 'webkit', 'OPFS unavailable in Playwright WebKit');
 
-const playButton = (page: import('@playwright/test').Page) =>
-	page.locator('button:has(svg path[d^="M5.25 5.653"])').first();
+const transportBar = (page: import('@playwright/test').Page) =>
+	page.getByRole('region', { name: 'Transport' });
 
 test.describe('analysis', () => {
 	test('analyze two files produces plots with LUFS values', async ({ page }) => {
@@ -61,10 +61,10 @@ test.describe('analysis', () => {
 		await runAnalysis(page);
 		// default crossovers 200/2000 → bands: 0–200 Hz, 200–2000 Hz, 2000+ Hz, Full
 		await page.getByRole('button', { name: '0–200 Hz' }).first().click();
-		await expect(page.locator('svg').first()).toBeVisible();
+		await expect(page.getByTestId('plot').first()).toBeVisible();
 		await page.getByRole('button', { name: '2000+ Hz' }).first().click();
 		await page.getByRole('button', { name: 'Short-term' }).first().click();
-		await expect(page.locator('svg').first()).toBeVisible();
+		await expect(page.getByTestId('plot').first()).toBeVisible();
 		await expect(page.getByText(/LUFS-I:/)).toBeVisible();
 	});
 
@@ -83,19 +83,19 @@ test.describe('analysis', () => {
 		test.slow();
 		await seedProject(page, [SHORT_WAV]);
 		await runAnalysis(page);
-		await playButton(page).click();
+		await transportBar(page).getByRole('button', { name: 'Play' }).click();
 		await expect(page.locator('div.bg-white\\/40')).toBeVisible({ timeout: 10_000 });
-		// pause icon replaces play icon while playing
-		await page.locator('button:has(svg path[d^="M15.75 5.25"])').first().click();
+		await transportBar(page).getByRole('button', { name: 'Pause' }).click();
+		await expect(transportBar(page).getByRole('button', { name: 'Play' })).toBeVisible();
 	});
 
 	test('silence analyzes without crashing', async ({ page }) => {
 		test.slow();
 		await seedProject(page, ['silence-wav16-44k-stereo-5s.wav']);
 		await runAnalysis(page);
-		await expect(page.locator('svg').first()).toBeVisible();
+		await expect(page.getByTestId('plot').first()).toBeVisible();
 		// -Infinity integrated loudness → LUFS-I chip hidden, but no error page
-		await expect(page.getByText('HOVER TO INSPECT')).toBeVisible();
+		await expect(page.getByText(/LUFS-I:/)).toHaveCount(0);
 	});
 
 	test('60 second file analyzes end to end', async ({ page }) => {

@@ -1,11 +1,10 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
 	import * as d3 from 'd3';
 	import type { AudioFile } from '$lib/state/files.svelte';
-	import type { FileResult } from '$lib/state/results.svelte';
-	import { playback, play, togglePlayPause, setGain } from '$lib/audio/playback.svelte';
-	import { buildBands, type FreqBand } from '$lib/audio/filters';
-	import { options } from '$lib/state/options.svelte';
+	import { nearestValue, type FileResult } from '$lib/state/results.svelte';
+	import { playback } from '$lib/audio/playback.svelte';
+	import { transport, playTrack } from '$lib/audio/transport.svelte';
+	import { formatTime, lufsColor } from '$lib/format';
 
 	type Props = {
 		audioFile: AudioFile;
@@ -23,40 +22,12 @@
 	const MARGIN = { top: 8, right: 16, bottom: 24, left: 48 };
 	const HEIGHT = 180;
 
-	const bands = $derived(buildBands(options.frequencies));
-	const currentBand = $derived<FreqBand | null>(
-		bands.find((b) => b.label === selectedBand) ?? null
-	);
-
 	const bandResult = $derived(result.bands.find((b) => b.label === selectedBand));
 	const loudnessData = $derived(bandResult?.[loudnessType] ?? []);
-
-	type HoverInfo = {
-		time: number;
-		momentary: number | null;
-		shortTerm: number | null;
-		peak: number | null;
-	};
-
-	let hoverInfo = $state<HoverInfo | null>(null);
 
 	const integratedLufs = $derived(
 		(result.bands.find((b) => b.label === 'full') ?? result.bands[0])?.integrated
 	);
-
-	const fullBandLufs = $derived(result.bands.find((b) => b.label === 'full')?.integrated ?? null);
-
-	// Gain to apply when playing a band buffer so it sounds proportionally quieter than full spectrum
-	const bandPlaybackGainDb = $derived(
-		selectedBand === 'full' || fullBandLufs === null || bandResult === undefined
-			? 0
-			: isFinite(bandResult.integrated) && isFinite(fullBandLufs)
-				? bandResult.integrated - fullBandLufs
-				: 0
-	);
-
-	const isThisFileActive = $derived(playback.currentFileId === audioFile.id);
-	const isThisFilePlaying = $derived(isThisFileActive && playback.isPlaying);
 
 	const playheadLeft = $derived(
 		playback.isPlaying && playback.currentFileId === audioFile.id
@@ -65,40 +36,6 @@
 					MARGIN.left
 			: null
 	);
-
-	function nearestValue(data: [number, number][], timeMs: number): number | null {
-		if (!data.length) return null;
-		let best = data[0];
-		for (const d of data) {
-			if (Math.abs(d[0] - timeMs) < Math.abs(best[0] - timeMs)) best = d;
-		}
-		return best[1];
-	}
-
-	function formatTime(s: number): string {
-		const m = Math.floor(s / 60);
-		const sec = Math.floor(s % 60);
-		return `${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
-	}
-
-	function lufsColor(lufs: number): string {
-		const stops: [number, string][] = [
-			[-35, '#3b82f6'],
-			[-30, '#3b82f6'],
-			[-25, '#22c55e'],
-			[-20, '#eab308'],
-			[-15, '#ef4444']
-		];
-		const clamped = Math.max(stops[0][0], Math.min(stops[stops.length - 1][0], lufs));
-		for (let i = 0; i < stops.length - 1; i++) {
-			const [d0, c0] = stops[i];
-			const [d1, c1] = stops[i + 1];
-			if (clamped <= d1) {
-				return d3.interpolateRgb(c0, c1)((clamped - d0) / (d1 - d0));
-			}
-		}
-		return stops[stops.length - 1][1];
-	}
 
 	// Rebucket the stored 100 ms min/max peak file down to one entry per pixel.
 	function waveformEnvelope(
@@ -136,28 +73,6 @@
 		}
 		return out;
 	}
-
-	$effect(() => {
-		const totalGain = lufsOffset + bandPlaybackGainDb;
-		if (isThisFileActive) setGain(totalGain);
-	});
-
-	$effect(() => {
-		const band = selectedBand; // tracked
-		const slope = options.slope; // tracked
-		untrack(() => {
-			if (!playback.isPlaying || playback.currentFileId !== audioFile.id) return;
-			const freqBand = bands.find((b) => b.label === band) ?? null;
-			play(
-				audioFile.id,
-				audioFile.file,
-				freqBand,
-				slope,
-				playback.currentTime,
-				lufsOffset + bandPlaybackGainDb
-			);
-		});
-	});
 
 	$effect(() => {
 		if (!container) return;
@@ -286,15 +201,7 @@
 			.style('cursor', 'crosshair')
 			.on('click', (event) => {
 				const [mx] = d3.pointer(event);
-				const offsetSeconds = Math.max(0, xScale.invert(mx));
-				play(
-					audioFile.id,
-					audioFile.file,
-					currentBand,
-					options.slope,
-					offsetSeconds,
-					lufsOffset + bandPlaybackGainDb
-				);
+				playTrack(audioFile.id, Math.max(0, xScale.invert(mx)));
 			})
 			.on('mousemove', (event) => {
 				const [mx] = d3.pointer(event);
@@ -311,67 +218,24 @@
 					.attr('fill', lufsValOffset !== null ? lufsColor(lufsValOffset) : '#ffffff88')
 					.text(lufsValOffset !== null ? lufsValOffset.toFixed(1) : '')
 					.attr('display', lufsVal !== null ? null : 'none');
-				hoverInfo = { time: t, momentary: mom, shortTerm: st, peak: pk };
+				transport.hover = {
+					fileId: audioFile.id,
+					time: t,
+					momentary: mom,
+					shortTerm: st,
+					peak: pk
+				};
 			})
 			.on('mouseleave', () => {
 				hoverLine.attr('display', 'none');
 				hoverLabel.attr('display', 'none');
-				hoverInfo = null;
+				if (transport.hover?.fileId === audioFile.id) transport.hover = null;
 			});
 	});
 </script>
 
 <div class="border-b border-gray-700">
 	<div class="flex items-center gap-3 border-b border-gray-800 px-3 py-2">
-		<button
-			class="shrink-0 cursor-pointer text-gray-400 transition-colors hover:text-white"
-			onclick={() => {
-				if (isThisFileActive) {
-					togglePlayPause();
-				} else {
-					play(
-						audioFile.id,
-						audioFile.file,
-						currentBand,
-						options.slope,
-						0,
-						lufsOffset + bandPlaybackGainDb
-					);
-				}
-			}}
-		>
-			{#if isThisFilePlaying}
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					fill="none"
-					viewBox="0 0 24 24"
-					stroke-width="1.5"
-					stroke="currentColor"
-					class="size-4"
-				>
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						d="M15.75 5.25v13.5m-7.5-13.5v13.5"
-					/>
-				</svg>
-			{:else}
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					fill="none"
-					viewBox="0 0 24 24"
-					stroke-width="1.5"
-					stroke="currentColor"
-					class="size-4"
-				>
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z"
-					/>
-				</svg>
-			{/if}
-		</button>
 		{#if lufsOffset !== 0}
 			<span class="shrink-0 font-mono text-xs text-gray-400"
 				>{lufsOffset > 0 ? '+' : ''}{lufsOffset.toFixed(1)} dB</span
@@ -395,7 +259,7 @@
 	</div>
 
 	<div class="relative" bind:clientWidth={containerWidth}>
-		<div bind:this={container} class="w-full bg-gray-950"></div>
+		<div bind:this={container} data-testid="plot" class="w-full bg-gray-950"></div>
 		{#if playheadLeft !== null}
 			<div
 				class="pointer-events-none absolute top-0 w-px bg-white/40"
@@ -405,25 +269,4 @@
 			></div>
 		{/if}
 	</div>
-
-	{#if hoverInfo}
-		<div class="flex gap-6 border-t border-gray-800 px-3 py-1 font-mono text-[10px] text-gray-300">
-			<span>TIME {formatTime(hoverInfo.time)}</span>
-			<span>PEAK {hoverInfo.peak?.toFixed(1) ?? '—'} dBFS</span>
-			<span
-				>MOMENTARY {hoverInfo.momentary !== null
-					? (hoverInfo.momentary + lufsOffset).toFixed(1)
-					: '—'} LUFS</span
-			>
-			<span
-				>SHORT-TERM {hoverInfo.shortTerm !== null
-					? (hoverInfo.shortTerm + lufsOffset).toFixed(1)
-					: '—'} LUFS</span
-			>
-		</div>
-	{:else}
-		<div class="border-t border-gray-800 px-3 py-1 font-mono text-[10px] text-gray-500">
-			HOVER TO INSPECT
-		</div>
-	{/if}
 </div>

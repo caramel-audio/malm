@@ -1,5 +1,7 @@
 // State for analysis results
 
+import { options } from './options.svelte';
+
 export type BandResult = {
 	label: string; // e.g. "0-80 Hz", "full"
 	// Arrays of [timeMs, loudnessLUFS] pairs
@@ -36,4 +38,47 @@ export function clearResults(): void {
 
 export function markResultsStale(): void {
 	results.isFresh = false;
+}
+
+/** Integrated loudness of the full band (falls back to the first band). */
+export function integratedFull(result: FileResult): number {
+	return (result.bands.find((b) => b.label === 'full') ?? result.bands[0])?.integrated ?? -Infinity;
+}
+
+export function quietestFileId(): string | null {
+	let quietest: { fileId: string; lufs: number } | null = null;
+	for (const r of results.data) {
+		const lufs = integratedFull(r);
+		if (quietest === null || lufs < quietest.lufs) quietest = { fileId: r.fileId, lufs };
+	}
+	return quietest?.fileId ?? null;
+}
+
+/**
+ * dB to add to a file so it matches the quietest one. 0 when normalization is
+ * off. Shared by the plots (drawing), the transport readout and playback gain.
+ */
+export function lufsOffset(fileId: string): number {
+	if (!options.normalizeToQuietest) return 0;
+	const quietestId = quietestFileId();
+	const quietest = results.data.find((r) => r.fileId === quietestId);
+	const self = results.data.find((r) => r.fileId === fileId);
+	if (!quietest || !self) return 0;
+	const a = integratedFull(quietest);
+	const b = integratedFull(self);
+	return isFinite(a) && isFinite(b) ? a - b : 0;
+}
+
+/** Value of the sample nearest `timeMs`. Binary search — these series are long. */
+export function nearestValue(data: [number, number][], timeMs: number): number | null {
+	if (!data.length) return null;
+	let lo = 0;
+	let hi = data.length - 1;
+	while (lo < hi) {
+		const mid = (lo + hi) >> 1;
+		if (data[mid][0] < timeMs) lo = mid + 1;
+		else hi = mid;
+	}
+	const prev = data[Math.max(0, lo - 1)];
+	return Math.abs(prev[0] - timeMs) < Math.abs(data[lo][0] - timeMs) ? prev[1] : data[lo][1];
 }

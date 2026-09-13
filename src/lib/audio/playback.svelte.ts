@@ -21,6 +21,9 @@ let objectUrl: string | null = null;
 let loadedFileId: string | null = null;
 let rafId: number | null = null;
 
+/** Set by the transport module so it can honour repeat. Called after reset(). */
+export const playbackHooks = { onEnded: null as ((fileId: string | null) => void) | null };
+
 function tick() {
 	if (audioEl && playback.isPlaying) {
 		playback.currentTime = audioEl.currentTime;
@@ -42,7 +45,11 @@ function ensureGraph(): { ctx: AudioContext; audioEl: HTMLAudioElement } {
 	if (!audioEl) {
 		audioEl = new Audio();
 		audioEl.preload = 'metadata';
-		audioEl.addEventListener('ended', reset);
+		audioEl.addEventListener('ended', () => {
+			const endedId = playback.currentFileId;
+			reset();
+			playbackHooks.onEnded?.(endedId);
+		});
 		sourceNode = ctx.createMediaElementSource(audioEl);
 	}
 	return { ctx, audioEl };
@@ -128,6 +135,15 @@ export async function resume(): Promise<void> {
 	playback.isPlaying = true;
 	playback.isPaused = false;
 	rafId = requestAnimationFrame(tick);
+}
+
+/** Moves the playhead of the already-loaded element. No-op before anything plays. */
+export function seek(seconds: number): void {
+	if (!audioEl || !playback.currentFileId) return;
+	const max = isFinite(audioEl.duration) ? audioEl.duration : seconds;
+	const t = Math.max(0, Math.min(seconds, max));
+	audioEl.currentTime = t;
+	playback.currentTime = t;
 }
 
 export function setGain(gainDb: number): void {

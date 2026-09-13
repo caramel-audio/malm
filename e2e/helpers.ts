@@ -35,7 +35,7 @@ export async function uploadFiles(page: Page, ...names: string[]): Promise<void>
 export async function runAnalysis(page: Page): Promise<void> {
 	await page.getByRole('button', { name: 'Analyze' }).click();
 	await page.waitForURL(/\/analysis$/, { timeout: 120_000 });
-	await expect(page.locator('svg').first()).toBeVisible({ timeout: 120_000 });
+	await expect(page.getByTestId('plot').first()).toBeVisible({ timeout: 120_000 });
 }
 
 /** Full seed: project + files uploaded, on setup page. */

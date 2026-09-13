@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { files } from '$lib/state/files.svelte';
-	import { results } from '$lib/state/results.svelte';
+	import { results, lufsOffset, quietestFileId } from '$lib/state/results.svelte';
 	import { options } from '$lib/state/options.svelte';
 	import Plot from './Plot.svelte';
 
@@ -13,30 +13,7 @@
 		}
 	});
 
-	const fileIntegratedLufs = $derived(
-		results.data.map((r) => ({
-			fileId: r.fileId,
-			lufs: (r.bands.find((b) => b.label === 'full') ?? r.bands[0])?.integrated ?? -Infinity
-		}))
-	);
-
-	const quietestEntry = $derived(
-		fileIntegratedLufs.reduce<{ fileId: string; lufs: number } | null>(
-			(min, e) => (min === null || e.lufs < min.lufs ? e : min),
-			null
-		)
-	);
-
-	const quietestFile = $derived(
-		quietestEntry ? files.list.find((f) => f.id === quietestEntry.fileId) : null
-	);
-
-	function lufsOffset(fileId: string): number {
-		if (!options.normalizeToQuietest || !quietestEntry) return 0;
-		const entry = fileIntegratedLufs.find((e) => e.fileId === fileId);
-		if (!entry || !isFinite(entry.lufs) || !isFinite(quietestEntry.lufs)) return 0;
-		return quietestEntry.lufs - entry.lufs;
-	}
+	const quietestFile = $derived(files.list.find((f) => f.id === quietestFileId()) ?? null);
 
 	function bandLabel(label: string): string {
 		return label === 'full' ? 'Full' : label;
