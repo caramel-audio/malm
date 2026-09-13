@@ -64,6 +64,6 @@ test('analyses a multi-hour track without loading it all into memory', async ({
 	polling = false;
 	await poll;
 
-	await expect(page.locator('svg').first()).toBeVisible();
+	await expect(page.getByTestId('plot').first()).toBeVisible();
 	if (browserName === 'chromium') expect(peakHeap).toBeLessThan(HEAP_LIMIT);
 });

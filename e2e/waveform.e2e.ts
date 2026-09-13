@@ -1,6 +1,10 @@
 import { test, expect } from '@playwright/test';
 import { skipSplash, createProject, uploadFiles, runAnalysis } from './helpers';
 
+// Playwright's WebKit has no working OPFS (navigator.storage.getDirectory throws
+// UnknownError), so every project page fails to load — nothing here can run.
+test.skip(({ browserName }) => browserName === 'webkit', 'OPFS unavailable in Playwright WebKit');
+
 const WAVE = 'path[fill="#333333"]';
 
 test('fresh analysis draws the waveform', async ({ page }) => {
@@ -33,7 +37,7 @@ test('legacy results without a waveform re-enable Analyze', async ({ page }) => 
 	}, id);
 
 	await page.goto(`/projects/${id}/analysis`);
-	await expect(page.locator('svg').first()).toBeVisible();
+	await expect(page.getByTestId('plot').first()).toBeVisible();
 	await expect(page.locator(WAVE)).toHaveCount(0);
 
 	// Analyze must be offered again so the waveform can be regenerated.

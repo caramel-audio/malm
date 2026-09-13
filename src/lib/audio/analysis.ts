@@ -11,7 +11,8 @@ export function analysisSignature(frequencies: number[], slope: Slope): string {
 
 /**
  * Which files still need analyzing: a result is reusable only if its file is
- * still loaded and it was measured with the current crossovers and slope.
+ * still loaded, it was measured with the current crossovers and slope, and it
+ * is complete — results from older builds have no waveform to draw.
  */
 export function splitForAnalysis(
 	files: AudioFile[],
@@ -19,7 +20,9 @@ export function splitForAnalysis(
 	signature: string
 ): { reuse: FileResult[]; todo: AudioFile[] } {
 	const usable = new Map(
-		existing.filter((r) => r.sig === signature).map((r) => [r.fileId, r] as const)
+		existing
+			.filter((r) => r.sig === signature && r.waveform?.length)
+			.map((r) => [r.fileId, r] as const)
 	);
 	const reuse: FileResult[] = [];
 	const todo: AudioFile[] = [];

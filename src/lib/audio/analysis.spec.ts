@@ -4,7 +4,8 @@ import type { AudioFile } from '$lib/state/files.svelte';
 import type { FileResult } from '$lib/state/results.svelte';
 
 const file = (id: string) => ({ id, duration: 10 }) as AudioFile;
-const result = (fileId: string, sig?: string) => ({ fileId, bands: [], sig }) as FileResult;
+const result = (fileId: string, sig?: string, waveform: [number, number][] = [[0, 1]]) =>
+	({ fileId, bands: [], sig, waveform }) as FileResult;
 
 const SIG = analysisSignature([200, 2000], 'LR24');
 const OTHER = analysisSignature([200, 2000], 'BW12');
@@ -45,6 +46,13 @@ describe('splitForAnalysis', () => {
 
 	it('re-analyzes results saved before signatures existed', () => {
 		const { reuse, todo } = splitForAnalysis([file('a')], [result('a')], SIG);
+		expect(reuse).toEqual([]);
+		expect(todo.map((f) => f.id)).toEqual(['a']);
+	});
+
+	it('re-analyzes results that carry no waveform', () => {
+		const legacy = result('a', SIG, []);
+		const { reuse, todo } = splitForAnalysis([file('a')], [legacy], SIG);
 		expect(reuse).toEqual([]);
 		expect(todo.map((f) => f.id)).toEqual(['a']);
 	});
