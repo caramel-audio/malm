@@ -14,6 +14,16 @@
 		}
 	});
 
+	// Mono-only projects (and results from before balance existed) have nothing to
+	// compare, so the button stays out of the way.
+	const hasBalance = $derived(results.data.some((r) => r.bands.some((b) => b.balance?.length)));
+
+	$effect(() => {
+		if (results.data.length > 0 && !hasBalance && options.loudnessType === 'balance') {
+			options.loudnessType = 'momentary';
+		}
+	});
+
 	const quietestFile = $derived(files.list.find((f) => f.id === quietestFileId()) ?? null);
 
 	// Redrawing every plot is synchronous and takes seconds with many tracks, so
@@ -108,12 +118,23 @@
 					? 'bg-gray-800 text-gray-100'
 					: 'text-gray-500 hover:bg-gray-900 hover:text-gray-300'}">Short-term</button
 			>
+			{#if hasBalance}
+				<button
+					onclick={() => (options.loudnessType = 'balance')}
+					class="border-t border-gray-700 px-3 py-1.5 text-left text-xs tracking-widest whitespace-nowrap uppercase transition-colors
+						{options.loudnessType === 'balance'
+						? 'bg-gray-800 text-gray-100'
+						: 'text-gray-500 hover:bg-gray-900 hover:text-gray-300'}">L/R balance</button
+				>
+			{/if}
 		</div>
 	</div>
 {/snippet}
 
 {#snippet normalizeSelector()}
-	{#if results.data.length > 1}
+	<!-- Balance is a difference between two channels of the same file; a per-file
+	     gain offset cancels out of it, so the control would do nothing. -->
+	{#if results.data.length > 1 && options.loudnessType !== 'balance'}
 		<div>
 			<div class="mb-1.5 text-xs tracking-widest text-gray-500 uppercase">Normalize</div>
 			<div class="flex flex-col border border-gray-700">

@@ -11,6 +11,12 @@ export type BandResult = {
 	peak: [number, number][];
 	// EBU R128 integrated LUFS (gated)
 	integrated: number;
+	// [timeMs, dB] by which left exceeds right over the short-term window.
+	// Absent for mono sources and for results saved before this existed; steps
+	// below the absolute gate are omitted, so this is sparser than `shortTerm`.
+	balance?: [number, number][];
+	// Same difference over the gated blocks behind `integrated`.
+	balanceIntegrated?: number;
 };
 
 export type FileResult = {

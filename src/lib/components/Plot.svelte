@@ -4,18 +4,25 @@
 	import { nearestValue, type FileResult } from '$lib/state/results.svelte';
 	import { playback } from '$lib/audio/playback.svelte';
 	import { transport, playTrack } from '$lib/audio/transport.svelte';
-	import { options } from '$lib/state/options.svelte';
-	import { formatTime, lufsColor } from '$lib/format';
+	import { options, type LoudnessType } from '$lib/state/options.svelte';
+	import { formatTime, lufsColor, balanceColor, formatSignedDb } from '$lib/format';
 
 	type Props = {
 		audioFile: AudioFile;
 		result: FileResult;
 		selectedBand: string;
-		loudnessType: 'momentary' | 'shortTerm';
+		loudnessType: LoudnessType;
 		lufsOffset?: number;
 	};
 
 	let { audioFile, result, selectedBand, loudnessType, lufsOffset = 0 }: Props = $props();
+
+	const isBalance = $derived(loudnessType === 'balance');
+	// Balance is a difference, so the normalization offset does not apply to it.
+	const appliedOffset = $derived(isBalance ? 0 : lufsOffset);
+	// Fixed, not autoscaled: two tracks side by side must be equally crooked at
+	// equal slope. Values past the edge clamp — the header carries the true number.
+	const BALANCE_RANGE = 6;
 
 	const pinned = $derived(options.pinnedFileId === audioFile.id);
 
@@ -31,6 +38,10 @@
 	const integratedLufs = $derived(
 		(result.bands.find((b) => b.label === 'full') ?? result.bands[0])?.integrated
 	);
+
+	// Header number follows the selected band: "is this band crooked" is the
+	// question the balance view is there to answer.
+	const integratedBalance = $derived(bandResult?.balanceIntegrated);
 
 	const playheadLeft = $derived(
 		playback.isPlaying && playback.currentFileId === audioFile.id
@@ -49,7 +60,7 @@
 
 	function markerValue(t: number): number | null {
 		const v = nearestValue(bandResult?.[loudnessType] ?? [], t * 1000);
-		return v === null ? null : v + lufsOffset;
+		return v === null ? null : v + appliedOffset;
 	}
 
 	function removeMarker(t: number): void {
@@ -77,9 +88,15 @@
 		});
 	}
 
-	// One point per pixel bucket, keeping the loudest — a 3 h track has ~108k
-	// points and drawing a line segment per point locks up the browser.
-	function decimateLufs(data: [number, number][], width: number): [number, number][] {
+	// One point per pixel bucket, keeping the most extreme — a 3 h track has ~108k
+	// points and drawing a line segment per point locks up the browser. For
+	// loudness "extreme" means loudest; for balance it means furthest off centre,
+	// since keeping the largest signed value there would bias every bucket left.
+	function decimateLufs(
+		data: [number, number][],
+		width: number,
+		rank: (v: number) => number
+	): [number, number][] {
 		if (data.length <= width * 2 || width <= 0) return data;
 		const per = data.length / width;
 		const out: [number, number][] = [];
@@ -88,11 +105,19 @@
 			const end = Math.max(start + 1, Math.floor((i + 1) * per));
 			let best = data[start];
 			for (let j = start + 1; j < end && j < data.length; j++) {
-				if (data[j][1] > best[1]) best = data[j];
+				if (rank(data[j][1]) > rank(best[1])) best = data[j];
 			}
 			out.push(best);
 		}
 		return out;
+	}
+
+	function seriesColor(v: number): string {
+		return isBalance ? balanceColor(v) : lufsColor(v);
+	}
+
+	function seriesLabel(v: number): string {
+		return isBalance ? formatSignedDb(v) : v.toFixed(1);
 	}
 
 	$effect(() => {
@@ -102,10 +127,13 @@
 		const innerW = width - MARGIN.left - MARGIN.right;
 		const innerH = HEIGHT - MARGIN.top - MARGIN.bottom;
 
-		const offset = lufsOffset;
-		const lufsData = decimateLufs(loudnessData, innerW).map(
-			([t, v]) => [t, v + offset] as [number, number]
-		);
+		const balanceView = isBalance;
+		const offset = appliedOffset;
+		const lufsData = decimateLufs(
+			loudnessData,
+			innerW,
+			balanceView ? Math.abs : (v: number) => v
+		).map(([t, v]) => [t, v + offset] as [number, number]);
 		const br = bandResult;
 
 		d3.select(container).selectAll('svg').remove();
@@ -121,7 +149,9 @@
 
 		const xScale = d3.scaleLinear().domain([0, audioFile.duration]).range([0, innerW]);
 		const yWave = d3.scaleLinear().domain([-1, 1]).range([innerH, 0]);
-		const yLufs = d3.scaleLinear().domain([-45, -5]).range([innerH, 0]);
+		const yLufs = balanceView
+			? d3.scaleLinear().domain([-BALANCE_RANGE, BALANCE_RANGE]).range([innerH, 0]).clamp(true)
+			: d3.scaleLinear().domain([-45, -5]).range([innerH, 0]);
 
 		g.append('g')
 			.attr('transform', `translate(0,${innerH})`)
@@ -145,8 +175,8 @@
 			.call(
 				d3
 					.axisLeft(yLufs)
-					.tickValues([-40, -35, -30, -25, -20, -15, -10])
-					.tickFormat((d) => `${d}`)
+					.tickValues(balanceView ? [-6, -3, 0, 3, 6] : [-40, -35, -30, -25, -20, -15, -10])
+					.tickFormat((d) => (balanceView ? formatSignedDb(+d) : `${d}`))
 			)
 			.call((ax) => ax.select('.domain').attr('stroke', '#4d4d4d'))
 			.call((ax) => ax.selectAll('.tick line').attr('stroke', '#4d4d4d'))
@@ -170,6 +200,30 @@
 			g.append('path').datum(envelope).attr('d', areaGen).attr('fill', '#333333');
 		}
 
+		// Centre line, with the sides named — "+1.5" means nothing without it
+		if (balanceView) {
+			g.append('line')
+				.attr('x1', 0)
+				.attr('x2', innerW)
+				.attr('y1', yLufs(0))
+				.attr('y2', yLufs(0))
+				.attr('stroke', '#6b7280')
+				.attr('stroke-dasharray', '3 3');
+
+			for (const [label, value] of [
+				['L', BALANCE_RANGE],
+				['R', -BALANCE_RANGE]
+			] as const) {
+				g.append('text')
+					.attr('x', 4)
+					.attr('y', yLufs(value) + (value > 0 ? 10 : -3))
+					.attr('fill', '#6b7280')
+					.style('font-family', 'monospace')
+					.style('font-size', '10px')
+					.text(label);
+			}
+		}
+
 		// Loudness colored segments
 		if (lufsData.length > 1) {
 			type Segment = { x1: number; y1: number; x2: number; y2: number; color: string };
@@ -180,7 +234,7 @@
 					y1: yLufs(d[1]),
 					x2: xScale(next[0] / 1000),
 					y2: yLufs(next[1]),
-					color: lufsColor((d[1] + next[1]) / 2)
+					color: seriesColor((d[1] + next[1]) / 2)
 				};
 			});
 
@@ -238,13 +292,17 @@
 				const mom = nearestValue(br?.momentary ?? [], timeMs);
 				const st = nearestValue(br?.shortTerm ?? [], timeMs);
 				const pk = nearestValue(br?.peak ?? [], timeMs);
-				const lufsVal = loudnessType === 'momentary' ? mom : st;
+				const lufsVal = balanceView
+					? nearestValue(br?.balance ?? [], timeMs)
+					: loudnessType === 'momentary'
+						? mom
+						: st;
 				const lufsValOffset = lufsVal !== null ? lufsVal + offset : null;
 				hoverLine.attr('x1', mx).attr('x2', mx).attr('display', null);
 				hoverLabel
 					.attr('x', mx)
-					.attr('fill', lufsValOffset !== null ? lufsColor(lufsValOffset) : '#ffffff88')
-					.text(lufsValOffset !== null ? lufsValOffset.toFixed(1) : '')
+					.attr('fill', lufsValOffset !== null ? seriesColor(lufsValOffset) : '#ffffff88')
+					.text(lufsValOffset !== null ? seriesLabel(lufsValOffset) : '')
 					.attr('display', lufsVal !== null ? null : 'none');
 				transport.hover = {
 					fileId: audioFile.id,
@@ -289,7 +347,19 @@
 		{:else}
 			<span class="flex-1"></span>
 		{/if}
-		{#if integratedLufs !== undefined && isFinite(integratedLufs)}
+		{#if isBalance}
+			{#if integratedBalance !== undefined && isFinite(integratedBalance)}
+				<span
+					class="shrink-0 font-mono text-xs"
+					style:color={balanceColor(integratedBalance)}
+					data-testid="plot-balance"
+					title="Gated L/R difference for this band"
+					>L/R: {formatSignedDb(integratedBalance)} dB</span
+				>
+			{:else}
+				<span class="shrink-0 font-mono text-xs text-gray-600">L/R: mono</span>
+			{/if}
+		{:else if integratedLufs !== undefined && isFinite(integratedLufs)}
 			<span class="shrink-0 font-mono text-xs text-gray-400"
 				>LUFS-I: {integratedLufs.toFixed(1)}</span
 			>
@@ -315,7 +385,7 @@
 						class="pointer-events-none absolute bottom-[1px] left-1/2 -translate-x-1/2 rounded-sm bg-gray-950/85 px-1 py-[2px] leading-none"
 						style:font-family="monospace"
 						style:font-size="10px"
-						style:color={lufsColor(value)}>{value.toFixed(1)}</span
+						style:color={seriesColor(value)}>{seriesLabel(value)}</span
 					>
 				{/if}
 				<button

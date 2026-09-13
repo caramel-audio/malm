@@ -49,3 +49,5 @@ export async function seedProject(page: Page, files: string[], name?: string): P
 export const SHORT_WAV = 'sine440-wav16-44k-stereo-5s.wav';
 export const SHORT_WAV2 = 'pinknoise-wav16-44k-stereo-5s.wav';
 export const TINY_WAV = 'sine440-wav16-44k-mono-0.5s.wav';
+/** Right channel at half amplitude — leans +6.02 dB left. */
+export const LOPSIDED_WAV = 'lopsided-wav16-44k-stereo-5s.wav';

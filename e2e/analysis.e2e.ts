@@ -7,7 +7,8 @@ import {
 	runAnalysis,
 	SHORT_WAV,
 	SHORT_WAV2,
-	TINY_WAV
+	TINY_WAV,
+	LOPSIDED_WAV
 } from './helpers';
 
 // Playwright's WebKit has no working OPFS (navigator.storage.getDirectory throws
@@ -23,6 +24,25 @@ test.describe('analysis', () => {
 		await seedProject(page, [SHORT_WAV, SHORT_WAV2]);
 		await runAnalysis(page);
 		await expect(page.getByText(/LUFS-I:/)).toHaveCount(2);
+	});
+
+	test('L/R balance view reports a known imbalance', async ({ page }) => {
+		test.slow();
+		await seedProject(page, [LOPSIDED_WAV]);
+		await runAnalysis(page);
+		await page.getByRole('button', { name: 'L/R balance' }).click();
+		// Right channel is at half amplitude, so left leads by 20*log10(2).
+		await expect(page.getByTestId('plot-balance')).toHaveText(/L\/R: \+6\.0 dB/);
+		// The balance axis replaces the LUFS one.
+		await expect(page.getByText(/LUFS-I:/)).toHaveCount(0);
+	});
+
+	test('balance button is hidden for mono-only results', async ({ page }) => {
+		test.slow();
+		await seedProject(page, [TINY_WAV]);
+		await runAnalysis(page);
+		await expect(page.getByRole('button', { name: 'Short-term' })).toBeVisible();
+		await expect(page.getByRole('button', { name: 'L/R balance' })).toHaveCount(0);
 	});
 
 	test('Analyze disabled without files', async ({ page }) => {

@@ -18,6 +18,7 @@ import {
  *   SHOT_ROUTE     route to capture, '[id]' replaced with the seeded project id (default /projects)
  *   SHOT_VIEWPORT  WxH, e.g. 390x844 (default project viewport)
  *   SHOT_SEED      'files' seeds a project with two tracks; 'analysis' also runs analysis
+ *   SHOT_FILES     comma-separated fixture names to seed instead of the default two
  *   SHOT_SPLASH    set to show the first-visit splash instead of suppressing it
  *   SHOT_CLICK     accessible name of a button to click before the shot (e.g. to open a modal)
  *   SHOT_OUT       output path (default e2e/.shots/shot.png)
@@ -38,7 +39,8 @@ test('screenshot', async ({ page }) => {
 
 	if (process.env.SHOT_SEED) {
 		const id = await createProject(page, 'Screenshot Project');
-		await uploadFiles(page, SHORT_WAV, SHORT_WAV2);
+		const seedFiles = process.env.SHOT_FILES?.split(',') ?? [SHORT_WAV, SHORT_WAV2];
+		await uploadFiles(page, ...seedFiles);
 		if (process.env.SHOT_SEED === 'analysis') {
 			await runAnalysis(page);
 			await page.waitForTimeout(1000); // let the debounced results save hit OPFS before reload

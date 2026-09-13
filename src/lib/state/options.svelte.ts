@@ -5,13 +5,17 @@ import { SLOPES, type Slope } from '$lib/audio/filters';
 const DEFAULT_FREQUENCIES = [200, 2000];
 const DEFAULT_SLOPE: Slope = 'LR24';
 
+/** What the plots draw: a loudness curve, or the L/R difference. */
+export const LOUDNESS_TYPES = ['momentary', 'shortTerm', 'balance'] as const;
+export type LoudnessType = (typeof LOUDNESS_TYPES)[number];
+
 export const options = $state({
 	frequencies: [...DEFAULT_FREQUENCIES],
 	slope: DEFAULT_SLOPE as Slope,
 	selectedBand: 'full',
 	// Track kept at the top of the list and out of the scroll area.
 	pinnedFileId: null as string | null,
-	loudnessType: 'momentary' as 'momentary' | 'shortTerm',
+	loudnessType: 'momentary' as LoudnessType,
 	normalizeToQuietest: false,
 	// Sticky readout lines per file id, in seconds.
 	markers: {} as Record<string, number[]>
@@ -44,8 +48,7 @@ export function loadOptionsForProject(projectId: string): void {
 		if (SLOPES.includes(parsed.slope)) options.slope = parsed.slope;
 		if (typeof parsed.selectedBand === 'string') options.selectedBand = parsed.selectedBand;
 		if (typeof parsed.pinnedFileId === 'string') options.pinnedFileId = parsed.pinnedFileId;
-		if (parsed.loudnessType === 'momentary' || parsed.loudnessType === 'shortTerm')
-			options.loudnessType = parsed.loudnessType;
+		if (LOUDNESS_TYPES.includes(parsed.loudnessType)) options.loudnessType = parsed.loudnessType;
 		if (typeof parsed.normalizeToQuietest === 'boolean')
 			options.normalizeToQuietest = parsed.normalizeToQuietest;
 		if (parsed.markers && typeof parsed.markers === 'object') {

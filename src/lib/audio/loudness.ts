@@ -53,13 +53,25 @@ function toDb(meanSquare: number): number {
 	return -0.691 + 10 * Math.log10(Math.max(meanSquare, 1e-10));
 }
 
-// EBU R128 gating: absolute gate at -70 LUFS, relative gate 10 dB below ungated mean
-function integratedLufs(chunkSS: Float64Array[], stepSamples: number): number {
+// Absolute gate at -70 LUFS, as a mean square
+const ABS_GATE_MS = Math.pow(10, (-70 + 0.691) / 10);
+
+/**
+ * EBU R128 gating (absolute gate at -70 LUFS, relative gate 10 dB below the
+ * ungated mean) over 400 ms blocks. Gating decisions are made on the
+ * channel-summed level; what comes back is the surviving mean square *per
+ * channel*, so the integrated loudness and the L/R difference are both read off
+ * exactly the same set of blocks. Null when everything was gated out.
+ */
+function gatedChannelMeans(chunkSS: Float64Array[], stepSamples: number): Float64Array | null {
 	const totalSteps = chunkSS[0].length;
 	const nCh = chunkSS.length;
 	const blockChunks = 4; // 400 ms blocks at 100 ms steps
+	const nBlocks = totalSteps - blockChunks + 1;
+	if (nBlocks <= 0) return null;
 
-	const blockMS: number[] = [];
+	const blockSum = new Float64Array(nBlocks); // channel-weighted, drives the gate
+	const blockCh = new Float64Array(nBlocks * nCh); // per channel, drives the balance
 	const running = new Float64Array(nCh);
 	for (let step = 0; step < totalSteps; step++) {
 		for (let ch = 0; ch < nCh; ch++) {
@@ -67,22 +79,43 @@ function integratedLufs(chunkSS: Float64Array[], stepSamples: number): number {
 			if (step >= blockChunks) running[ch] -= chunkSS[ch][step - blockChunks];
 		}
 		if (step >= blockChunks - 1) {
+			const b = step - blockChunks + 1;
 			let sum = 0;
-			for (let ch = 0; ch < nCh; ch++) sum += (CHANNEL_GAINS[ch] ?? 1) * running[ch];
-			blockMS.push(sum / (blockChunks * stepSamples));
+			for (let ch = 0; ch < nCh; ch++) {
+				const ms = running[ch] / (blockChunks * stepSamples);
+				blockCh[b * nCh + ch] = ms;
+				sum += (CHANNEL_GAINS[ch] ?? 1) * ms;
+			}
+			blockSum[b] = sum;
 		}
 	}
 
-	const absThreshold = Math.pow(10, (-70 + 0.691) / 10);
-	const gated1 = blockMS.filter((ms) => ms >= absThreshold);
-	if (gated1.length === 0) return -Infinity;
+	let count = 0,
+		total = 0;
+	for (let b = 0; b < nBlocks; b++) {
+		if (blockSum[b] >= ABS_GATE_MS) {
+			count++;
+			total += blockSum[b];
+		}
+	}
+	if (count === 0) return null;
 
-	const ungatedMean = gated1.reduce((a, b) => a + b, 0) / gated1.length;
-	const relThreshold = ungatedMean * Math.pow(10, -10 / 10);
-	const gated2 = gated1.filter((ms) => ms >= relThreshold);
-	if (gated2.length === 0) return -Infinity;
+	const relThreshold = (total / count) * Math.pow(10, -10 / 10);
+	const means = new Float64Array(nCh);
+	let kept = 0;
+	for (let b = 0; b < nBlocks; b++) {
+		if (blockSum[b] < ABS_GATE_MS || blockSum[b] < relThreshold) continue;
+		kept++;
+		for (let ch = 0; ch < nCh; ch++) means[ch] += blockCh[b * nCh + ch];
+	}
+	if (kept === 0) return null;
+	for (let ch = 0; ch < nCh; ch++) means[ch] /= kept;
+	return means;
+}
 
-	return toDb(gated2.reduce((a, b) => a + b, 0) / gated2.length);
+/** dB by which left exceeds right, from two mean squares. Null if either is silent. */
+function balanceDb(l: number, r: number): number | null {
+	return l > 0 && r > 0 ? 10 * Math.log10(l / r) : null;
 }
 
 /**
@@ -165,6 +198,10 @@ export class LoudnessMeter {
 		const stRunning = new Float64Array(nCh);
 		const momentary: [number, number][] = [];
 		const shortTerm: [number, number][] = [];
+		// L/R difference over the short-term window — 400 ms is too jittery to read
+		// a fraction of a dB off. Only meaningful for stereo.
+		const balance: [number, number][] = [];
+		const stereo = nCh >= 2;
 
 		for (let step = 0; step < totalSteps; step++) {
 			for (let ch = 0; ch < nCh; ch++) {
@@ -186,13 +223,35 @@ export class LoudnessMeter {
 
 			momentary.push([step * 100, toDb(mSum)]);
 			shortTerm.push([step * 100, toDb(stSum)]);
+
+			// Below the absolute gate the ratio is noise dividing noise — leave a gap
+			// rather than draw a spike.
+			if (stereo && stSum >= ABS_GATE_MS) {
+				const denom = stChunks * stepSamples;
+				const db = balanceDb(stRunning[0] / denom, stRunning[1] / denom);
+				if (db !== null) balance.push([step * 100, db]);
+			}
+		}
+
+		const means = totalSteps > 0 ? gatedChannelMeans(chunkSS, stepSamples) : null;
+		let integrated = -Infinity;
+		if (means) {
+			let sum = 0;
+			for (let ch = 0; ch < nCh; ch++) sum += (CHANNEL_GAINS[ch] ?? 1) * means[ch];
+			integrated = toDb(sum);
 		}
 
 		return {
 			momentary,
 			shortTerm,
 			peak: this.peak,
-			integrated: totalSteps > 0 ? integratedLufs(chunkSS, stepSamples) : -Infinity
+			integrated,
+			...(stereo
+				? {
+						balance,
+						balanceIntegrated: (means && balanceDb(means[0], means[1])) ?? undefined
+					}
+				: {})
 		};
 	}
 }

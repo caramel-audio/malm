@@ -57,6 +57,40 @@ describe('LoudnessMeter', () => {
 		expect(r.peak[0][1]).toBeCloseTo(-20, 1);
 	});
 
+	it('reports a centred balance for identical channels', () => {
+		const r = measure([left, right], fullBand, [left.length]);
+		expect(r.balanceIntegrated).toBeCloseTo(0, 6);
+		expect(r.balance!.length).toBe(r.shortTerm.length);
+		for (const [, db] of r.balance!) expect(db).toBeCloseTo(0, 6);
+	});
+
+	it('measures a known left-right imbalance', () => {
+		// Right at half amplitude = 6.02 dB down, so left leads by that much.
+		const quietRight = sine(10, 997, 0.05);
+		const r = measure([left, quietRight], fullBand, [left.length]);
+		expect(r.balanceIntegrated).toBeCloseTo(6.02, 1);
+		// Steady signal — the short-term curve should sit on the same value.
+		expect(r.balance!.at(-1)![1]).toBeCloseTo(6.02, 1);
+		// A difference is not a level: the integrated loudness is unaffected by
+		// which way it leans, only by the total.
+		expect(r.integrated).toBeLessThan(-20);
+	});
+
+	it('omits balance entirely for mono', () => {
+		const r = measure([left], fullBand, [left.length]);
+		expect(r.balance).toBeUndefined();
+		expect(r.balanceIntegrated).toBeUndefined();
+	});
+
+	it('gates silence out of the balance curve', () => {
+		const silence = new Float32Array(left.length);
+		const r = measure([left, silence], fullBand, [left.length]);
+		// Right is digital silence: every step is skipped rather than plotted as
+		// an infinite lean.
+		expect(r.balance).toEqual([]);
+		expect(r.balanceIntegrated).toBeUndefined();
+	});
+
 	it('reports -Infinity when fed less than one 100 ms step', () => {
 		const short = sine(0.05, 997, 0.1);
 		const r = measure([short, short], fullBand, [short.length]);
