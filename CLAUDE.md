@@ -54,8 +54,11 @@ SHOT_SEED=analysis SHOT_ROUTE='/projects/[id]/analysis' npx playwright test --pr
 /                          → redirect to /projects
 /projects                  → project hub (card grid, create/rename/delete)
 /projects/[id]/setup       → Upload + Options panels + Analyze button
-/projects/[id]/analysis    → Results plots
+/projects/[id]/analysis    → Loudness plots (the tab is labelled "LUFS")
+/projects/[id]/spectrogram → Per-track STFT spectrograms
 ```
+
+The LUFS tab keeps the `/analysis` path — only its label changed.
 
 Layout hierarchy:
 
@@ -84,26 +87,30 @@ OPFS helpers live in `src/lib/storage/opfs.ts`.
 
 - `project.svelte.ts` — project list + CRUD (localStorage-backed); `projects.list`, `createProject`, `deleteProject`, `renameProject`
 - `files.svelte.ts` — loaded `AudioFile` objects (id, File, metadata — no PCM); writes to OPFS when `currentProjectId` is set
-- `options.svelte.ts` — crossover frequencies, filter `slope`, `pinnedFileId`; `loadOptionsForProject` / `saveOptionsForProject` use per-project localStorage keys
+- `options.svelte.ts` — crossover frequencies, filter `slope`, `pinnedFileId`, per-tab `rowHeight` / `spectrogramRowHeight` / `spectrogramLogFreq`; `loadOptionsForProject` / `saveOptionsForProject` use per-project localStorage keys
+- `analysis.svelte.ts` — `analysis.isAnalyzing` / `progress` plus `runAnalysis()` / `cancelAnalysis()`. Every entry point (the Analyze bar in setup, the re-analyze buttons in both result tabs) goes through `runAnalysis` so there is only ever one decode pass
 - `presets.svelte.ts` — named crossover presets (`malm_crossover_presets`), plus `projectCrossovers` / `defaultCrossoverForNewProject` which read other projects' option keys
-- `results.svelte.ts` — `FileResult[]` produced by analysis; each file has one `BandResult` per band, a `sig` (the crossovers+slope it was measured with) and an optional `waveform` (100 ms min/max "peak file" the plot draws); `isFresh` flag indicates whether results match the current file set and options (used to disable the Analyze button). Also owns the shared `lufsOffset` / `quietestFileId` / `nearestValue` helpers
+- `results.svelte.ts` — `FileResult[]` produced by analysis; each file has one `BandResult` per band, a `sig` (the crossovers+slope it was measured with), an optional `waveform` (100 ms min/max "peak file" the plot draws) and an optional `spectrogram`; `isFresh` flag indicates whether the **loudness** half matches the current file set and options. Spectrogram freshness is derived instead (`spectrogramsFresh`) because nothing in the setup options can invalidate it. Also owns the shared `lufsOffset` / `quietestFileId` / `nearestValue` helpers
 
 **Audio pipeline** (`src/lib/audio/`) — fully streaming; a multi-hour track is never decoded into one buffer:
 
 1. `decode.ts` — `decodeAudioChunks(file)` async-generates small PCM chunks via mediabunny (WebCodecs), falling back to one-shot `decodeAudioData` for formats it cannot demux; `probeAudio(file)` reads duration/sample rate/channels
-2. `analysis.ts` — top-level orchestrator; one decode pass per file feeds every band's meter plus the waveform accumulator, reports progress weighted by duration. `splitForAnalysis` keeps results whose file, signature and waveform are all still valid, so appending a track only measures that track
+2. `analysis.ts` — top-level orchestrator; one decode pass per file feeds every band's meter, the waveform accumulator and the spectrogram accumulator, reports progress weighted by duration. `splitForAnalysis` splits a result into two independently reusable halves: loudness (invalidated by the crossovers, the slope or the file itself) and the spectrogram (invalidated only by the file). Its `carry` map holds the surviving half for files that still need the other, so nudging a crossover never rebuilds a spectrogram and appending a track never re-measures the rest
 3. `filters.ts` — `buildBands(frequencies)` derives `FreqBand[]` from crossover list; `buildBandCoeffs(band, sampleRate, slope)` returns the cascaded stages for LR 12/24/48 or Butterworth 12/24/48 (LR12's halves are 1st-order sections expressed as biquads with `b2`/`a2` zeroed)
 4. `loudness.ts` — push-based `LoudnessMeter` (`feed()` / `finish()`): K-weighted LUFS, custom O(N) sliding windows for momentary/short-term, custom EBU R128 gating for integrated. The gating pass returns the surviving mean square _per channel_ plus the mean L·R product, so `integrated`, the L/R `balance` series (short-term window) and the `correlation` series (momentary window, since phase faults are transient) all come off the same blocks. Both stereo series are silence-gated and absent for mono. The L·R product is accumulated post-K, which costs one multiply-add per sample and reuses the existing sums of squares. Filter state and the partial 100 ms step carry across `feed()` calls, so chunking never changes the result (`loudness.spec.ts` pins this). `WaveformAccumulator` collects the peak file.
-5. `playback.svelte.ts` — streams through a singleton `HTMLAudioElement` → `MediaElementAudioSourceNode`; builds `IIRFilterNode`s from the _analysis_ coefficients so band-isolated playback matches the measurement exactly
-6. `transport.svelte.ts` — the app-aware layer over playback: `playTrack` / `toggle` / `seekBy` / `readout`, band + normalization gain, repeat. Every playback entry point (transport bar, plot clicks, spacebar) goes through it
+5. `fft.ts` / `spectrogram.ts` — radix-2 FFT (the Web Audio `AnalyserNode` is realtime-only and useless offline) and the push-based `SpectrogramAccumulator`. 2048-point Hann frames, non-overlapping, **sparsely sampled**: the hop is scaled from the track duration so a long file costs a bounded number of FFTs rather than one per frame. Output is a fixed grid of at most 1024 columns × 512 bins of `Uint8` log-magnitude (−120…0 dB), base64'd into the result — when a track outruns the column budget, column pairs are folded together and the hop doubles, so memory is bounded even if the duration is wrong
+6. `playback.svelte.ts` — streams through a singleton `HTMLAudioElement` → `MediaElementAudioSourceNode`; builds `IIRFilterNode`s from the _analysis_ coefficients so band-isolated playback matches the measurement exactly
+7. `transport.svelte.ts` — the app-aware layer over playback: `playTrack` / `toggle` / `seekBy` / `readout`, band + normalization gain, repeat. Every playback entry point (transport bar, plot clicks, spacebar) goes through it
 
 **Components** (`src/lib/components/`):
 
-- `NavBar.svelte` — top bar present on all project pages; logo, breadcrumb with project switcher dropdown, Setup/Analysis tabs, info button; two-row on mobile (breadcrumb row + tab row)
+- `NavBar.svelte` — top bar present on all project pages; logo, breadcrumb with project switcher dropdown, Setup / LUFS / Spectrogram tabs, info button; two-row on mobile (breadcrumb row + tab row)
 - `Upload.svelte` — file drop zone + track list with drag-to-reorder
 - `Options.svelte` — crossover frequency editor
 - `Results.svelte` — band/loudness-type selectors (momentary / short-term / L/R balance / correlation — the last two only when stereo results exist), "normalize to quietest" toggle (hidden in the stereo views, where a per-file offset cancels out), renders one `Plot` per file; the pinned file's plot sits outside the scroll area. Controls are a left sidebar on desktop, two-column top bar on mobile
 - `Plot.svelte` — D3-based loudness timeline with playhead and click-to-seek; everything that differs between the four curves lives in one `VIEWS` table (domain, ticks, colour, label, decimation `rank`, whether the normalization offset applies, axis edge labels) — the stereo views get fixed symmetric axes, not autoscaled ones, so tracks stay comparable; reports hover values to the transport bar and owns no playback controls of its own
+- `Spectrogram.svelte` / `SpectrogramPlot.svelte` — the spectrogram tab, laid out exactly like `Results.svelte` (sidebar on desktop, two-column bar on mobile, pinned track outside the scroll area). The plot paints the stored grid into a `<canvas>` as one `ImageData` (magma ramp over a −105…0 dB window), with a d3 SVG overlay for the axes; hovering reports the frequency and dB under the cursor into the track header. Both frequency axes resample the same linear-bin grid, taking the **max** over each pixel's bin range — a nearest pick would drop the one-bin-thick edge a codec cutoff shows up as
+- `SidebarAnalyze.svelte` / `RowHeightSlider.svelte` — the two controls both result tabs share: the re-analyze prompt (shown only when that tab's data is stale) and the per-track row-height slider
 - `TransportBar.svelte` — bottom bar on every project page: current track, transport buttons, peak/LUFS-M/LUFS-S readout (grey following the playhead, plot-colored while hovering)
 - `CrossoverBar.svelte` — the log-frequency strip; `readonly` for preset previews
 - `BusyOverlay.svelte` — overlay shown while a blocking redraw or project load runs

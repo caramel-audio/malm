@@ -1,6 +1,7 @@
 // State for analysis results
 
 import { options } from './options.svelte';
+import type { Spectrogram } from '$lib/audio/spectrogram';
 
 export type BandResult = {
 	label: string; // e.g. "0-80 Hz", "full"
@@ -34,6 +35,11 @@ export type FileResult = {
 	// [min, max] of the raw signal per 100 ms — the stored waveform "peak file".
 	// Optional: results saved before streaming analysis don't have it.
 	waveform?: [number, number][];
+	// Fixed-size STFT summary behind the spectrogram tab. Unlike the bands it does
+	// not depend on the crossovers, so it survives an options change.
+	// ponytail: base64 inside results.json — ~700 KB per track. Move to its own
+	// OPFS blob if saving or loading a big project starts to drag.
+	spectrogram?: Spectrogram;
 };
 
 export const results = $state<{ data: FileResult[]; isFresh: boolean }>({
@@ -53,6 +59,16 @@ export function clearResults(): void {
 
 export function markResultsStale(): void {
 	results.isFresh = false;
+}
+
+/**
+ * Whether every loaded file has a spectrogram. Unlike `results.isFresh` this is
+ * derived rather than a flag, because nothing in the setup options can
+ * invalidate a spectrogram — only the file set can.
+ */
+export function spectrogramsFresh(fileIds: string[]): boolean {
+	if (fileIds.length === 0) return false;
+	return fileIds.every((id) => results.data.find((r) => r.fileId === id)?.spectrogram);
 }
 
 /** Integrated loudness of the full band (falls back to the first band). */

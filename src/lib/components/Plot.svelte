@@ -20,9 +20,18 @@
 		selectedBand: string;
 		loudnessType: LoudnessType;
 		lufsOffset?: number;
+		/** Row height in px — the sidebar slider drives this. */
+		height?: number;
 	};
 
-	let { audioFile, result, selectedBand, loudnessType, lufsOffset = 0 }: Props = $props();
+	let {
+		audioFile,
+		result,
+		selectedBand,
+		loudnessType,
+		lufsOffset = 0,
+		height = 180
+	}: Props = $props();
 
 	/**
 	 * Everything that differs between the four curves the plot can draw.
@@ -91,7 +100,7 @@
 	let containerWidth = $state(0);
 
 	const MARGIN = { top: 8, right: 16, bottom: 24, left: 48 };
-	const HEIGHT = 180;
+	const HEIGHT = $derived(height);
 
 	const bandResult = $derived(result.bands.find((b) => b.label === selectedBand));
 	const loudnessData = $derived(bandResult?.[loudnessType] ?? []);

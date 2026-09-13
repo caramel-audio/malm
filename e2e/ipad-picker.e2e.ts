@@ -38,19 +38,21 @@ async function openNewProject(page: import('@playwright/test').Page): Promise<vo
 test('file input does not restrict the OS picker', async ({ page }) => {
 	await openNewProject(page);
 
-	const input = page.locator('input[type="file"]');
-	await expect(input).toHaveCount(1);
-	// Any `accept` list makes iOS/iPadOS grey out files it cannot map to a UTI.
-	expect(await input.getAttribute('accept')).toBeNull();
-	expect(await input.getAttribute('capture')).toBeNull();
-	await expect(input).toHaveAttribute('multiple', '');
+	// Any `accept` list makes iOS/iPadOS grey out files it cannot map to a UTI —
+	// that goes for the add-tracks input and the replace-track one alike.
+	// .all() does not wait, so pin the multiple input down first.
+	await expect(page.locator('input[type="file"][multiple]')).toHaveCount(1);
+	for (const input of await page.locator('input[type="file"]').all()) {
+		expect(await input.getAttribute('accept')).toBeNull();
+		expect(await input.getAttribute('capture')).toBeNull();
+	}
 });
 
 test('file input is rendered, not display:none, so Safari opens the picker', async ({ page }) => {
 	await openNewProject(page);
 
 	const display = await page
-		.locator('input[type="file"]')
+		.locator('input[type="file"][multiple]')
 		.evaluate((el) => getComputedStyle(el).display);
 	expect(display).not.toBe('none');
 });
@@ -59,7 +61,7 @@ test('accepts an audio file the picker hands over without a MIME type', async ({
 	await openNewProject(page);
 
 	// iOS hands over files from iCloud/Files with an empty MIME type.
-	await page.locator('input[type="file"]').setInputFiles({
+	await page.locator('input[type="file"][multiple]').setInputFiles({
 		name: 'track.wav',
 		mimeType: '',
 		buffer: wavBytes()
@@ -71,7 +73,7 @@ test('accepts an audio file the picker hands over without a MIME type', async ({
 test('reports unsupported files instead of failing the whole selection', async ({ page }) => {
 	await openNewProject(page);
 
-	await page.locator('input[type="file"]').setInputFiles([
+	await page.locator('input[type="file"][multiple]').setInputFiles([
 		{ name: 'track.wav', mimeType: '', buffer: wavBytes() },
 		{ name: 'notes.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4') }
 	]);

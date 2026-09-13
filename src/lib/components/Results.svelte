@@ -1,9 +1,11 @@
 <script lang="ts">
 	import { files, type AudioFile } from '$lib/state/files.svelte';
 	import { results, lufsOffset, quietestFileId, type FileResult } from '$lib/state/results.svelte';
-	import { options } from '$lib/state/options.svelte';
+	import { options, ROW_HEIGHT_RANGE } from '$lib/state/options.svelte';
 	import Plot from './Plot.svelte';
 	import BusyOverlay from './BusyOverlay.svelte';
+	import RowHeightSlider from './RowHeightSlider.svelte';
+	import SidebarAnalyze from './SidebarAnalyze.svelte';
 
 	const bands = $derived(results.data[0]?.bands ?? [{ label: 'full' }]);
 
@@ -85,6 +87,15 @@
 		selectedBand={applied.band}
 		loudnessType={applied.loudnessType}
 		lufsOffset={applied.normalize ? lufsOffset(audioFile.id) : 0}
+		height={options.rowHeight}
+	/>
+{/snippet}
+
+{#snippet rowHeightSlider()}
+	<RowHeightSlider
+		bind:value={options.rowHeight}
+		min={ROW_HEIGHT_RANGE.min}
+		max={ROW_HEIGHT_RANGE.max}
 	/>
 {/snippet}
 
@@ -180,6 +191,8 @@
 		<div class="flex min-w-0 flex-1 flex-col gap-3">
 			{@render loudnessSelector()}
 			{@render normalizeSelector()}
+			{@render rowHeightSlider()}
+			<SidebarAnalyze fresh={results.isFresh} />
 		</div>
 	</div>
 
@@ -197,6 +210,8 @@
 					{quietestFile.name}{quietestFile.artist ? ` — ${quietestFile.artist}` : ''}
 				</div>
 			{/if}
+			<div class="w-[140px]">{@render rowHeightSlider()}</div>
+			<SidebarAnalyze fresh={results.isFresh} />
 		</div>
 
 		<!-- Plots area: the pinned track sits above the scroll box so it stays put -->

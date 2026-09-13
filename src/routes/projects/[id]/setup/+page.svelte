@@ -3,58 +3,32 @@
 	import Options from '$lib/components/Options.svelte';
 	import { files } from '$lib/state/files.svelte';
 	import { options } from '$lib/state/options.svelte';
-	import { analysis } from '$lib/state/analysis.svelte';
-	import { results, setResults } from '$lib/state/results.svelte';
-	import { analyzeFiles } from '$lib/audio/analysis';
+	import { analysis, runAnalysis, cancelAnalysis } from '$lib/state/analysis.svelte';
+	import { results, spectrogramsFresh } from '$lib/state/results.svelte';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 
-	let abortController: AbortController | null = null;
+	// The spectrogram is part of the same pass, so a project whose loudness is
+	// current but whose spectrograms are missing still has work to do.
+	const upToDate = $derived(results.isFresh && spectrogramsFresh(files.list.map((f) => f.id)));
 
 	const disabledReason = $derived(
 		files.list.length === 0
 			? 'No files loaded'
 			: options.frequencies.length === 0
 				? 'No crossovers defined'
-				: results.isFresh
+				: upToDate
 					? 'Already analyzed'
 					: null
 	);
 
 	async function handleAnalyze() {
 		const projectId = $page.params.id;
-		abortController = new AbortController();
-		analysis.isAnalyzing = true;
-		analysis.progress = 0;
-		// Results are kept, not cleared: analyzeFiles reuses the ones that still
-		// match the current files and settings and only measures the difference.
-		const existing = [...results.data];
-		let success = false;
-		try {
-			const data = await analyzeFiles(
-				files.list,
-				options.frequencies,
-				options.slope,
-				(p) => {
-					analysis.progress = p;
-				},
-				abortController.signal,
-				existing
-			);
-			setResults(data);
-			success = true;
-		} catch (e) {
-			if (!(e instanceof Error && e.name === 'AbortError')) throw e;
-		} finally {
-			analysis.isAnalyzing = false;
-			analysis.progress = 0;
-			abortController = null;
-		}
-		if (success) goto(`/projects/${projectId}/analysis`);
+		if (await runAnalysis()) goto(`/projects/${projectId}/analysis`);
 	}
 
 	function handleCancel() {
-		abortController?.abort();
+		cancelAnalysis();
 	}
 </script>
 

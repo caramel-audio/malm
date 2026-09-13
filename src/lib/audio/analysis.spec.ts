@@ -4,8 +4,17 @@ import type { AudioFile } from '$lib/state/files.svelte';
 import type { FileResult } from '$lib/state/results.svelte';
 
 const file = (id: string) => ({ id, duration: 10 }) as AudioFile;
+
+const SPECTROGRAM = {
+	columns: 1,
+	bins: 1,
+	sampleRate: 48000,
+	maxFrequency: 24000,
+	data: 'AA=='
+};
+
 const result = (fileId: string, sig?: string, waveform: [number, number][] = [[0, 1]]) =>
-	({ fileId, bands: [], sig, waveform }) as FileResult;
+	({ fileId, bands: [], sig, waveform, spectrogram: SPECTROGRAM }) as FileResult;
 
 const SIG = analysisSignature([200, 2000], 'LR24');
 const OTHER = analysisSignature([200, 2000], 'BW12');
@@ -55,6 +64,22 @@ describe('splitForAnalysis', () => {
 		const { reuse, todo } = splitForAnalysis([file('a')], [legacy], SIG);
 		expect(reuse).toEqual([]);
 		expect(todo.map((f) => f.id)).toEqual(['a']);
+	});
+
+	it('re-analyzes a file whose spectrogram is missing, keeping its bands', () => {
+		const noSpec = { ...result('a', SIG), spectrogram: undefined };
+		const { reuse, todo, carry } = splitForAnalysis([file('a')], [noSpec], SIG);
+		expect(reuse).toEqual([]);
+		expect(todo.map((f) => f.id)).toEqual(['a']);
+		// The loudness half survives, so the pass only has to build the spectrogram.
+		expect(carry.get('a')).toBe(noSpec);
+	});
+
+	it('keeps the spectrogram when only the crossovers changed', () => {
+		const stale = result('a', OTHER);
+		const { todo, carry } = splitForAnalysis([file('a')], [stale], SIG);
+		expect(todo.map((f) => f.id)).toEqual(['a']);
+		expect(carry.get('a')?.spectrogram).toBe(SPECTROGRAM);
 	});
 
 	it('drops results for files that are gone', () => {

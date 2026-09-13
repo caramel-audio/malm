@@ -15,6 +15,14 @@
 
 	const isSetup = $derived($page.url.pathname.endsWith('/setup'));
 	const isAnalysis = $derived($page.url.pathname.endsWith('/analysis'));
+	const isSpectrogram = $derived($page.url.pathname.endsWith('/spectrogram'));
+
+	// The route path stays /analysis — only the tab is named after what it shows.
+	const TABS = $derived([
+		{ href: 'setup', label: 'Setup', active: isSetup },
+		{ href: 'analysis', label: 'LUFS', active: isAnalysis },
+		{ href: 'spectrogram', label: 'Spectrogram', active: isSpectrogram }
+	]);
 
 	function closeDropdown() {
 		showProjectDropdown = false;
@@ -134,18 +142,15 @@
 
 			<!-- Tabs: desktop only (mobile tabs are in the second row below) -->
 			<div class="hidden shrink-0 items-stretch border-r border-gray-700 sm:flex">
-				<a
-					href="/projects/{projectId}/setup"
-					class="flex items-center px-6 text-xs tracking-widest uppercase transition-colors
-						{isSetup ? 'bg-gray-800 text-gray-100' : 'text-gray-500 hover:bg-gray-900 hover:text-gray-300'}"
-					>Setup</a
-				>
-				<a
-					href="/projects/{projectId}/analysis"
-					class="flex items-center border-l border-gray-700 px-6 text-xs tracking-widest uppercase transition-colors
-						{isAnalysis ? 'bg-gray-800 text-gray-100' : 'text-gray-500 hover:bg-gray-900 hover:text-gray-300'}"
-					>Analysis</a
-				>
+				{#each TABS as tab, i (tab.href)}
+					<a
+						href="/projects/{projectId}/{tab.href}"
+						class="flex items-center px-6 text-xs tracking-widest uppercase transition-colors
+							{i > 0 ? 'border-l border-gray-700' : ''}
+							{tab.active ? 'bg-gray-800 text-gray-100' : 'text-gray-500 hover:bg-gray-900 hover:text-gray-300'}"
+						>{tab.label}</a
+					>
+				{/each}
 			</div>
 		{:else}
 			<div class="flex-1"></div>
@@ -164,18 +169,15 @@
 	<!-- Mobile tab row: only shown inside a project on narrow screens -->
 	{#if currentProject}
 		<div class="flex h-10 items-stretch border-t border-gray-700 sm:hidden">
-			<a
-				href="/projects/{projectId}/setup"
-				class="flex flex-1 items-center justify-center text-xs tracking-widest uppercase transition-colors
-					{isSetup ? 'bg-gray-800 text-gray-100' : 'text-gray-500 hover:bg-gray-900 hover:text-gray-300'}"
-				>Setup</a
-			>
-			<a
-				href="/projects/{projectId}/analysis"
-				class="flex flex-1 items-center justify-center border-l border-gray-700 text-xs tracking-widest uppercase transition-colors
-					{isAnalysis ? 'bg-gray-800 text-gray-100' : 'text-gray-500 hover:bg-gray-900 hover:text-gray-300'}"
-				>Analysis</a
-			>
+			{#each TABS as tab, i (tab.href)}
+				<a
+					href="/projects/{projectId}/{tab.href}"
+					class="flex flex-1 items-center justify-center text-xs tracking-widest uppercase transition-colors
+						{i > 0 ? 'border-l border-gray-700' : ''}
+						{tab.active ? 'bg-gray-800 text-gray-100' : 'text-gray-500 hover:bg-gray-900 hover:text-gray-300'}"
+					>{tab.label}</a
+				>
+			{/each}
 		</div>
 	{/if}
 </nav>

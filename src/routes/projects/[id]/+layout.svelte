@@ -12,6 +12,7 @@
 	import { results, setResults, clearResults, markResultsStale } from '$lib/state/results.svelte';
 	import { updateProjectMeta } from '$lib/state/project.svelte';
 	import { isStorageAvailable, loadAudioFiles, loadResults, saveResults } from '$lib/storage/opfs';
+	import { analysisSignature } from '$lib/audio/analysis';
 	import { toggle } from '$lib/audio/transport.svelte';
 	import { stop } from '$lib/audio/playback.svelte';
 	import TransportBar from '$lib/components/TransportBar.svelte';
@@ -69,6 +70,9 @@
 		void options.pinnedFileId;
 		void options.loudnessType;
 		void options.normalizeToQuietest;
+		void options.rowHeight;
+		void options.spectrogramRowHeight;
+		void options.spectrogramLogFreq;
 		void JSON.stringify(options.markers);
 		const id = projectId;
 		if (!isLoaded) return;
@@ -152,7 +156,14 @@
 				// Results saved before the streaming rewrite carry no waveform, so the
 				// plot has nothing to draw. Mark them stale so Analyze is available
 				// again instead of sitting disabled on "Already analyzed".
-				if (savedResults.some((r) => !r.waveform?.length)) markResultsStale();
+				//
+				// Same for results measured with crossovers the project no longer uses:
+				// staleness is not persisted, so reopening a project has to work it out
+				// from the stored signature.
+				const signature = analysisSignature(options.frequencies, options.slope);
+				if (savedResults.some((r) => !r.waveform?.length || r.sig !== signature)) {
+					markResultsStale();
+				}
 			}
 
 			isLoaded = true;
