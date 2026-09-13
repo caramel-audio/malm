@@ -34,43 +34,72 @@ export function buildBands(frequencies: number[]): FreqBand[] {
 	return bands;
 }
 
-function hpCoeffs(fc: number, fs: number): BiquadCoeffs {
-	const Q = Math.SQRT1_2;
+export const SLOPES = ['LR12', 'LR24', 'LR48', 'BW12', 'BW24', 'BW48'] as const;
+export type Slope = (typeof SLOPES)[number];
+
+export const SLOPE_LABELS: Record<Slope, string> = {
+	LR12: 'LR 12 dB/oct',
+	LR24: 'LR 24 dB/oct',
+	LR48: 'LR 48 dB/oct',
+	BW12: 'BW 12 dB/oct',
+	BW24: 'BW 24 dB/oct',
+	BW48: 'BW 48 dB/oct'
+};
+
+// Butterworth pole Qs per section, 1/(2·cos((2k+1)π/2n)). A Linkwitz-Riley of
+// order n is the Butterworth of order n/2 cascaded twice — LR12's half is a
+// plain 1st-order section, marked here by a null Q.
+const BW_SECTIONS: Record<string, (number | null)[]> = {
+	1: [null],
+	2: [Math.SQRT1_2],
+	4: [0.5411961001461969, 1.3065629648763766],
+	8: [0.5097955791041592, 0.6013448869350453, 0.8999762231364156, 2.5629154477415055]
+};
+
+const SLOPE_SECTIONS: Record<Slope, (number | null)[]> = {
+	BW12: BW_SECTIONS[2],
+	BW24: BW_SECTIONS[4],
+	BW48: BW_SECTIONS[8],
+	LR12: [...BW_SECTIONS[1], ...BW_SECTIONS[1]],
+	LR24: [...BW_SECTIONS[2], ...BW_SECTIONS[2]],
+	LR48: [...BW_SECTIONS[4], ...BW_SECTIONS[4]]
+};
+
+// A 1st-order section fits the biquad shape with its second-order terms zeroed,
+// so the sample loops stay untouched.
+function firstOrderCoeffs(fc: number, fs: number, highpass: boolean): BiquadCoeffs {
 	const K = Math.tan((Math.PI * fc) / fs);
-	const norm = 1 / (1 + K / Q + K * K);
-	return {
-		b0: norm,
-		b1: -2 * norm,
-		b2: norm,
-		a1: 2 * (K * K - 1) * norm,
-		a2: (1 - K / Q + K * K) * norm
-	};
+	const norm = 1 / (1 + K);
+	return highpass
+		? { b0: norm, b1: -norm, b2: 0, a1: (K - 1) * norm, a2: 0 }
+		: { b0: K * norm, b1: K * norm, b2: 0, a1: (K - 1) * norm, a2: 0 };
 }
 
-function lpCoeffs(fc: number, fs: number): BiquadCoeffs {
-	const Q = Math.SQRT1_2;
+function sectionCoeffs(fc: number, fs: number, Q: number | null, highpass: boolean): BiquadCoeffs {
+	if (Q === null) return firstOrderCoeffs(fc, fs, highpass);
 	const K = Math.tan((Math.PI * fc) / fs);
 	const norm = 1 / (1 + K / Q + K * K);
-	return {
-		b0: K * K * norm,
-		b1: 2 * K * K * norm,
-		b2: K * K * norm,
-		a1: 2 * (K * K - 1) * norm,
-		a2: (1 - K / Q + K * K) * norm
-	};
+	const a1 = 2 * (K * K - 1) * norm;
+	const a2 = (1 - K / Q + K * K) * norm;
+	return highpass
+		? { b0: norm, b1: -2 * norm, b2: norm, a1, a2 }
+		: { b0: K * K * norm, b1: 2 * K * K * norm, b2: K * K * norm, a1, a2 };
 }
 
-// Returns LR4 filter stages for a band (2 cascaded biquads per cutoff).
+// Returns the cascaded filter stages for a band at the given slope.
 // Empty array for the "full" band (no filtering).
-export function buildBandCoeffs(band: FreqBand, sampleRate: number): BiquadCoeffs[] {
+export function buildBandCoeffs(
+	band: FreqBand,
+	sampleRate: number,
+	slope: Slope = 'LR24'
+): BiquadCoeffs[] {
+	const sections = SLOPE_SECTIONS[slope] ?? SLOPE_SECTIONS.LR24;
 	const stages: BiquadCoeffs[] = [];
 	if (band.lowHz !== null) {
-		const c = hpCoeffs(band.lowHz, sampleRate);
-		stages.push(c, c);
+		for (const Q of sections) stages.push(sectionCoeffs(band.lowHz, sampleRate, Q, true));
 	}
 	if (band.highHz !== null) {
-		const c = lpCoeffs(band.highHz, sampleRate);
-		stages.push(c, c);
+		for (const Q of sections) stages.push(sectionCoeffs(band.highHz, sampleRate, Q, false));
 	}
 	return stages;
 }

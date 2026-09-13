@@ -47,6 +47,20 @@ test.describe('crossover options', () => {
 		await expect(freqInputs(page).nth(0)).toHaveValue('200');
 	});
 
+	test('slope defaults to LR24 and persists across reload', async ({ page }) => {
+		const lr24 = page.getByRole('button', { name: 'LR 24 dB/oct' });
+		const bw48 = page.getByRole('button', { name: 'BW 48 dB/oct' });
+		await expect(lr24).toHaveAttribute('aria-pressed', 'true');
+		await bw48.click();
+		await expect(bw48).toHaveAttribute('aria-pressed', 'true');
+		await page.waitForTimeout(500); // > 300ms save debounce
+		await page.reload();
+		await expect(page.getByRole('button', { name: 'BW 48 dB/oct' })).toHaveAttribute(
+			'aria-pressed',
+			'true'
+		);
+	});
+
 	test('options persist across reload', async ({ page }) => {
 		await page.getByRole('button', { name: 'Remove 200 Hz' }).click();
 		await expect(freqInputs(page)).toHaveCount(1);

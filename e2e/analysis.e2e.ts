@@ -43,6 +43,18 @@ test.describe('analysis', () => {
 		await expect(page.getByRole('button', { name: 'Analyze' })).toBeEnabled();
 	});
 
+	test('changing the filter slope invalidates results', async ({ page }) => {
+		test.slow();
+		await seedProject(page, [TINY_WAV]);
+		await runAnalysis(page);
+		await page.getByRole('link', { name: 'Setup' }).first().click();
+		await expect(page.getByRole('button', { name: 'Analyze' })).toBeDisabled();
+		await page.getByRole('button', { name: 'LR 12 dB/oct' }).click();
+		await expect(page.getByRole('button', { name: 'Analyze' })).toBeEnabled();
+		await runAnalysis(page);
+		await expect(page.getByText(/LUFS-I:/)).toBeVisible();
+	});
+
 	test('band and loudness selectors switch without breaking plots', async ({ page }) => {
 		test.slow();
 		await seedProject(page, [SHORT_WAV]);

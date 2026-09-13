@@ -58,6 +58,7 @@
 	$effect(() => {
 		// Access each field to register as a reactive dependency.
 		void options.frequencies.join(',');
+		void options.slope;
 		void options.selectedBand;
 		void options.loudnessType;
 		void options.normalizeToQuietest;
@@ -89,6 +90,7 @@
 
 	$effect(() => {
 		options.frequencies.join(','); // reactive dep: crossover frequencies
+		void options.slope;
 		if (untrack(() => !isLoaded)) return;
 		untrack(() => markResultsStale());
 	});

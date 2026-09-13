@@ -1,12 +1,13 @@
 import type { AudioFile } from '$lib/state/files.svelte';
 import type { FileResult, BandResult } from '$lib/state/results.svelte';
-import { buildBands } from './filters';
+import { buildBands, type Slope } from './filters';
 import { LoudnessMeter, WaveformAccumulator } from './loudness';
 import { decodeAudioChunks } from './decode';
 
 export async function analyzeFiles(
 	files: AudioFile[],
 	frequencies: number[],
+	slope: Slope,
 	onProgress: (progress: number) => void,
 	signal?: AbortSignal
 ): Promise<FileResult[]> {
@@ -31,7 +32,7 @@ export async function analyzeFiles(
 
 			if (!meters) {
 				sampleRate = chunk.sampleRate;
-				meters = bands.map((b) => new LoudnessMeter(sampleRate, chunk.channels.length, b));
+				meters = bands.map((b) => new LoudnessMeter(sampleRate, chunk.channels.length, b, slope));
 				waveform = new WaveformAccumulator(sampleRate);
 			}
 

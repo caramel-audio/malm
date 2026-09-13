@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { options, addFrequency, removeFrequency, resetOptions } from '$lib/state/options.svelte';
+	import { SLOPES, SLOPE_LABELS } from '$lib/audio/filters';
 
 	const MIN_HZ = 20;
 	const MAX_HZ = 20000;
@@ -233,6 +234,25 @@
 				{/each}
 			</div>
 			<span class="text-xs text-gray-600 tabular-nums">20k</span>
+		</div>
+
+		<div class="mt-2 flex items-center justify-between">
+			<div class="text-xs tracking-widest text-gray-400 uppercase">Filter</div>
+			<div class="text-xs text-gray-600">Slope per crossover</div>
+		</div>
+		<div class="grid grid-cols-3 border border-gray-700">
+			{#each SLOPES as slope, i (slope)}
+				<button
+					onclick={() => (options.slope = slope)}
+					class="px-2 py-1.5 text-center text-[11px] tracking-wider whitespace-nowrap uppercase transition-colors
+						{i % 3 > 0 ? 'border-l border-gray-700' : ''}
+						{i > 2 ? 'border-t border-gray-700' : ''}
+						{options.slope === slope
+						? 'bg-gray-800 text-gray-100'
+						: 'text-gray-500 hover:bg-gray-900 hover:text-gray-300'}"
+					aria-pressed={options.slope === slope}>{SLOPE_LABELS[slope]}</button
+				>
+			{/each}
 		</div>
 	</div>
 </section>

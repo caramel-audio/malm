@@ -144,6 +144,7 @@
 
 	$effect(() => {
 		const band = selectedBand; // tracked
+		const slope = options.slope; // tracked
 		untrack(() => {
 			if (!playback.isPlaying || playback.currentFileId !== audioFile.id) return;
 			const freqBand = bands.find((b) => b.label === band) ?? null;
@@ -151,6 +152,7 @@
 				audioFile.id,
 				audioFile.file,
 				freqBand,
+				slope,
 				playback.currentTime,
 				lufsOffset + bandPlaybackGainDb
 			);
@@ -289,6 +291,7 @@
 					audioFile.id,
 					audioFile.file,
 					currentBand,
+					options.slope,
 					offsetSeconds,
 					lufsOffset + bandPlaybackGainDb
 				);
@@ -326,7 +329,14 @@
 				if (isThisFileActive) {
 					togglePlayPause();
 				} else {
-					play(audioFile.id, audioFile.file, currentBand, 0, lufsOffset + bandPlaybackGainDb);
+					play(
+						audioFile.id,
+						audioFile.file,
+						currentBand,
+						options.slope,
+						0,
+						lufsOffset + bandPlaybackGainDb
+					);
 				}
 			}}
 		>

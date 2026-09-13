@@ -32,6 +32,7 @@
 			const data = await analyzeFiles(
 				files.list,
 				options.frequencies,
+				options.slope,
 				(p) => {
 					analysis.progress = p;
 				},

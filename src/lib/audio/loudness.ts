@@ -2,7 +2,7 @@
 // No OfflineAudioContext or full-file buffer copies — processes source samples directly.
 
 import type { BandResult } from '$lib/state/results.svelte';
-import { type FreqBand, type BiquadCoeffs, buildBandCoeffs } from './filters';
+import { type FreqBand, type BiquadCoeffs, type Slope, buildBandCoeffs } from './filters';
 
 // K-weighting filter coefficients (pre-filter + RLB weighting per EBU R128)
 function kWeightingCoeffs(fs: number): BiquadCoeffs[] {
@@ -109,10 +109,11 @@ export class LoudnessMeter {
 	constructor(
 		sampleRate: number,
 		private readonly nCh: number,
-		band: FreqBand
+		band: FreqBand,
+		slope: Slope = 'LR24'
 	) {
 		this.stepSamples = Math.round(0.1 * sampleRate);
-		this.bandCoeffs = buildBandCoeffs(band, sampleRate);
+		this.bandCoeffs = buildBandCoeffs(band, sampleRate, slope);
 		this.kCoeffs = kWeightingCoeffs(sampleRate);
 		this.bandStates = Array.from({ length: nCh }, () =>
 			this.bandCoeffs.map(() => new Float64Array(2))

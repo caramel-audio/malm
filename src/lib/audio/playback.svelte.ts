@@ -2,7 +2,7 @@
 // multi-hour track costs nothing in memory. The same LR4 filter pairs used by
 // analysis are applied live.
 
-import type { FreqBand } from './filters';
+import { buildBandCoeffs, type FreqBand, type Slope } from './filters';
 
 export const playback = $state({
 	currentFileId: null as string | null,
@@ -20,26 +20,6 @@ let gainNode: GainNode | null = null;
 let objectUrl: string | null = null;
 let loadedFileId: string | null = null;
 let rafId: number | null = null;
-
-function addFilterPair(
-	ctx: AudioContext,
-	type: BiquadFilterType,
-	hz: number,
-	prev: AudioNode
-): AudioNode {
-	const f1 = ctx.createBiquadFilter();
-	f1.type = type;
-	f1.frequency.value = hz;
-	f1.Q.value = Math.SQRT1_2;
-	const f2 = ctx.createBiquadFilter();
-	f2.type = type;
-	f2.frequency.value = hz;
-	f2.Q.value = Math.SQRT1_2;
-	prev.connect(f1);
-	f1.connect(f2);
-	filterNodes.push(f1, f2);
-	return f2;
-}
 
 function tick() {
 	if (audioEl && playback.isPlaying) {
@@ -68,7 +48,10 @@ function ensureGraph(): { ctx: AudioContext; audioEl: HTMLAudioElement } {
 	return { ctx, audioEl };
 }
 
-function rebuildChain(ctx: AudioContext, band: FreqBand | null, gainDb: number) {
+// IIR nodes rather than BiquadFilterNodes: they take the analysis coefficients
+// verbatim, so what you hear is what was measured — and they can express the
+// first-order sections an LR12 crossover needs.
+function rebuildChain(ctx: AudioContext, band: FreqBand | null, slope: Slope, gainDb: number) {
 	sourceNode!.disconnect();
 	for (const n of filterNodes) n.disconnect();
 	filterNodes = [];
@@ -78,8 +61,14 @@ function rebuildChain(ctx: AudioContext, band: FreqBand | null, gainDb: number) 
 	gainNode.gain.value = Math.pow(10, gainDb / 20);
 
 	let lastNode: AudioNode = sourceNode!;
-	if (band?.lowHz != null) lastNode = addFilterPair(ctx, 'highpass', band.lowHz, lastNode);
-	if (band?.highHz != null) lastNode = addFilterPair(ctx, 'lowpass', band.highHz, lastNode);
+	if (band) {
+		for (const c of buildBandCoeffs(band, ctx.sampleRate, slope)) {
+			const node = ctx.createIIRFilter([c.b0, c.b1, c.b2], [1, c.a1, c.a2]);
+			lastNode.connect(node);
+			filterNodes.push(node);
+			lastNode = node;
+		}
+	}
 	lastNode.connect(gainNode);
 	gainNode.connect(ctx.destination);
 }
@@ -88,6 +77,7 @@ export function play(
 	fileId: string,
 	file: File,
 	band: FreqBand | null,
+	slope: Slope,
 	offsetSeconds: number,
 	gainDb = 0
 ): void {
@@ -101,7 +91,7 @@ export function play(
 		audioEl.src = objectUrl;
 	}
 
-	rebuildChain(ctx, band, gainDb);
+	rebuildChain(ctx, band, slope, gainDb);
 
 	const offset = Math.max(0, offsetSeconds);
 	const start = () => {
