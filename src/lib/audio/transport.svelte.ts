@@ -2,6 +2,7 @@
 // which band is selected and how loud each band is, so every caller (transport
 // bar, plot clicks, keyboard) goes through one place.
 
+import { untrack } from 'svelte';
 import { files, type AudioFile } from '$lib/state/files.svelte';
 import { options } from '$lib/state/options.svelte';
 import {
@@ -80,10 +81,19 @@ export function restart(): void {
 	seekTo(0);
 }
 
-/** Re-applies the current band/slope to whatever is playing, keeping position. */
+/**
+ * Re-applies the current band/slope to whatever is playing, keeping position.
+ *
+ * The playback reads are untracked: callers run this from an `$effect` keyed on
+ * the band, and `playback.currentTime` ticks every animation frame. Tracking it
+ * would make the effect retrigger 60×/s, rebuilding the filter graph and
+ * re-seeking the element to a stale timestamp — playback crawls and tears.
+ */
 export function reapplyBand(): void {
-	if (!playback.isPlaying || !playback.currentFileId) return;
-	playTrack(playback.currentFileId, playback.currentTime);
+	untrack(() => {
+		if (!playback.isPlaying || !playback.currentFileId) return;
+		playTrack(playback.currentFileId, playback.currentTime);
+	});
 }
 
 export type Readout = {
