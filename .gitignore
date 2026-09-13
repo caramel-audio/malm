@@ -29,3 +29,6 @@ test-results
 # AI
 /.claude
 /.omc
+e2e/fixtures/
+e2e/.shots/
+

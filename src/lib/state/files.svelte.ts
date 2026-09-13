@@ -75,7 +75,8 @@ export async function extractMetadata(file: File): Promise<{
 		const bitrate = f.bitrate != null ? Math.round(f.bitrate / 1000) : null;
 		const sampleRate = f.sampleRate ?? null;
 
-		const pic = selectCover(t.picture ?? []);
+		// selectCover throws on an empty array (reduce without initial value)
+		const pic = t.picture?.length ? selectCover(t.picture) : null;
 		const coverUrl = pic
 			? URL.createObjectURL(
 					new Blob(
