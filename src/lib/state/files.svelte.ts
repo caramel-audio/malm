@@ -134,76 +134,77 @@ export async function addFiles(fileList: FileList | File[]): Promise<string[]> {
 		return false;
 	});
 
-	await Promise.all(
-		items.map(async (file) => {
-			try {
-				// No decode here — a multi-hour track would blow up memory. Metadata
-				// only; the analysis pass streams the audio when it needs it.
-				const meta = await extractMetadata(file, true);
-				const { name, artist, album, codec, bitrate, coverUrl } = meta;
+	// Sequential, not Promise.all: saveAudioFile read-modify-writes the shared
+	// manifest, so parallel adds lose entries. It also keeps the row order of a
+	// multi-file drop equal to the selection order.
+	for (const file of items) {
+		try {
+			// No decode here — a multi-hour track would blow up memory. Metadata
+			// only; the analysis pass streams the audio when it needs it.
+			const meta = await extractMetadata(file, true);
+			const { name, artist, album, codec, bitrate, coverUrl } = meta;
 
-				const header = await file.slice(0, 22).arrayBuffer();
-				let sampleRate =
-					meta.sampleRate ?? sampleRateFromBuffer(header, mimeTypeFor(file), file.name);
-				let duration = meta.duration;
+			const header = await file.slice(0, 22).arrayBuffer();
+			let sampleRate =
+				meta.sampleRate ?? sampleRateFromBuffer(header, mimeTypeFor(file), file.name);
+			let duration = meta.duration;
 
-				if (duration == null || sampleRate == null) {
-					// iCloud-backed files can fail to read, and some formats hide their
-					// duration from the tag parser — fall back to a demuxer probe.
-					const probe = await probeAudio(file);
-					duration ??= probe?.duration ?? null;
-					sampleRate ??= probe?.sampleRate ?? null;
-				}
-				if (duration == null) throw new Error('undecodable');
-
-				const id = crypto.randomUUID();
-
-				files.list.push({
-					id,
-					file,
-					name,
-					artist,
-					album,
-					duration,
-					codec,
-					bitrate,
-					sampleRate,
-					coverUrl
-				});
-
-				if (currentProjectId) {
-					await saveAudioFile(
-						currentProjectId,
-						{
-							id,
-							name,
-							artist,
-							album,
-							duration,
-							fileName: file.name,
-							mimeType: mimeTypeFor(file) || 'audio/mpeg',
-							sizeBytes: file.size,
-							codec,
-							bitrate,
-							sampleRate
-						},
-						file
-					);
-
-					updateProjectMeta(currentProjectId, {
-						fileCount: files.list.length,
-						fileSizeBytes: totalSizeBytes(),
-						updatedAt: Date.now()
-					});
-				}
-			} catch (e) {
-				// Running out of storage affects the whole batch — let it propagate.
-				if (e instanceof DOMException && e.name === 'QuotaExceededError') throw e;
-				// One bad file must not abort the rest of the batch.
-				skipped.push(file.name);
+			if (duration == null || sampleRate == null) {
+				// iCloud-backed files can fail to read, and some formats hide their
+				// duration from the tag parser — fall back to a demuxer probe.
+				const probe = await probeAudio(file);
+				duration ??= probe?.duration ?? null;
+				sampleRate ??= probe?.sampleRate ?? null;
 			}
-		})
-	);
+			if (duration == null) throw new Error('undecodable');
+
+			const id = crypto.randomUUID();
+
+			files.list.push({
+				id,
+				file,
+				name,
+				artist,
+				album,
+				duration,
+				codec,
+				bitrate,
+				sampleRate,
+				coverUrl
+			});
+
+			if (currentProjectId) {
+				await saveAudioFile(
+					currentProjectId,
+					{
+						id,
+						name,
+						artist,
+						album,
+						duration,
+						fileName: file.name,
+						mimeType: mimeTypeFor(file) || 'audio/mpeg',
+						sizeBytes: file.size,
+						codec,
+						bitrate,
+						sampleRate
+					},
+					file
+				);
+
+				updateProjectMeta(currentProjectId, {
+					fileCount: files.list.length,
+					fileSizeBytes: totalSizeBytes(),
+					updatedAt: Date.now()
+				});
+			}
+		} catch (e) {
+			// Running out of storage affects the whole batch — let it propagate.
+			if (e instanceof DOMException && e.name === 'QuotaExceededError') throw e;
+			// One bad file must not abort the rest of the batch.
+			skipped.push(file.name);
+		}
+	}
 
 	return skipped;
 }

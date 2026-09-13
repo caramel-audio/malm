@@ -16,12 +16,8 @@ test.describe('upload', () => {
 		await expect(r).toContainText('0:05');
 	});
 
-	// Note: addFiles decodes in parallel (Promise.all), so the row order of a single
-	// multi-file drop is nondeterministic. Sequential uploads keep order stable.
-	test('multiple files upload', async ({ page }) => {
-		await seedProject(page, [SHORT_WAV]);
-		await uploadFiles(page, SHORT_WAV2);
-		await uploadFiles(page, TINY_WAV);
+	test('multiple files in one drop keep selection order', async ({ page }) => {
+		await seedProject(page, [SHORT_WAV, SHORT_WAV2, TINY_WAV]);
 		await expect(page.locator('ul li')).toHaveCount(3);
 		await expect(row(page, 0)).toContainText('sine440-wav16-44k-stereo-5s');
 		await expect(row(page, 1)).toContainText('pinknoise-wav16-44k-stereo-5s');
@@ -74,15 +70,22 @@ test.describe('upload', () => {
 		await expect(row(page, 1)).toContainText('sine440');
 	});
 
-	// Known bug: decodeAudioData rejection is uncaught (files.svelte.ts) — the app
-	// stays on LOADING... forever. Unskip once addFiles handles decode errors.
-	test.fixme('corrupt file shows an error instead of hanging', async ({ page }) => {
+	test('multi-file drop survives a reload (manifest writes are serialized)', async ({ page }) => {
+		await seedProject(page, [SHORT_WAV, SHORT_WAV2, TINY_WAV]);
+		await page.reload();
+		await expect(page.locator('ul li')).toHaveCount(3);
+		await expect(row(page, 0)).toContainText('sine440-wav16-44k-stereo-5s');
+		await expect(row(page, 1)).toContainText('pinknoise-wav16-44k-stereo-5s');
+		await expect(row(page, 2)).toContainText('sine440-wav16-44k-mono-0.5s');
+	});
+
+	test('corrupt file shows an error instead of hanging', async ({ page }) => {
 		await seedProject(page, []);
 		await page.locator('input[type=file]').setInputFiles(fx('corrupt.wav'));
 		await expect(page.getByText('LOADING...')).toBeHidden({ timeout: 10_000 });
 	});
 
-	test.fixme('non-audio file shows an error instead of hanging', async ({ page }) => {
+	test('non-audio file shows an error instead of hanging', async ({ page }) => {
 		await seedProject(page, []);
 		await page.locator('input[type=file]').setInputFiles(fx('notaudio.txt'));
 		await expect(page.getByText('LOADING...')).toBeHidden({ timeout: 10_000 });
