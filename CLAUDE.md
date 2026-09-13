@@ -35,7 +35,7 @@ npx playwright test --project=chromium   # fast single-browser run
 npx playwright test --project=chromium upload.e2e.ts -g "remove"   # one test
 ```
 
-Projects: `chromium`/`firefox`/`webkit` run the full suite at 1440x900; `tablet` (820px) and `mobile` (Pixel 7) run only `responsive.e2e.ts` + `projects.e2e.ts`. `formats.e2e.ts` has a per-browser `UNSUPPORTED` skip list for codec gaps (e.g. AIFF on chromium).
+Projects: `chromium`/`firefox`/`webkit` run the full suite at 1440x900; `tablet` (820px) and `mobile` (Pixel 7) run only `responsive.e2e.ts` + `projects.e2e.ts`. `ipad-picker.e2e.ts` is webkit-only (it pins the file input's missing `accept`, which is what unblocked the iPad document picker) and is ignored by the chromium/firefox projects. `formats.e2e.ts` has a per-browser `UNSUPPORTED` skip list for codec gaps (e.g. AIFF on chromium).
 
 **Screenshots during development** — `e2e/screenshot.e2e.ts` is an env-driven driver (only runs via `--project=screenshot`), output defaults to `e2e/.shots/shot.png`:
 
@@ -79,7 +79,7 @@ When a project already has saved results, the `[id]` layout redirects straight t
 | File manifest (ordered metadata)                | OPFS         | `/malm/projects/{id}/files/manifest.json` |
 | Analysis results                                | OPFS         | `/malm/projects/{id}/results.json`        |
 
-OPFS helpers live in `src/lib/storage/opfs.ts`.
+OPFS helpers live in `src/lib/storage/opfs.ts`. Persistence is best-effort: `isStorageAvailable()` gates the load path, and writes/removals/reorders are caught, so a browser without OPFS (iOS private browsing, older WebKit) shows a banner over a working project instead of failing the page.
 
 ## Architecture
 
@@ -105,7 +105,7 @@ OPFS helpers live in `src/lib/storage/opfs.ts`.
 **Components** (`src/lib/components/`):
 
 - `NavBar.svelte` — top bar present on all project pages; logo, breadcrumb with project switcher dropdown, Setup / LUFS / Spectrogram tabs, info button; two-row on mobile (breadcrumb row + tab row)
-- `Upload.svelte` — file drop zone + track list with drag-to-reorder
+- `Upload.svelte` — file drop zone + track list with drag-to-reorder. The file inputs carry **no `accept` attribute**: WebKit maps any list through UTIs and greys out ordinary mp3/flac documents in the iPad picker. Selection is validated in `addFiles` (extension/MIME, then decoding) instead
 - `Options.svelte` — crossover frequency editor
 - `Results.svelte` — band/loudness-type selectors (momentary / short-term / L/R balance / correlation — the last two only when stereo results exist), "normalize to quietest" toggle (hidden in the stereo views, where a per-file offset cancels out), renders one `Plot` per file; the pinned file's plot sits outside the scroll area. Controls are a left sidebar on desktop, two-column top bar on mobile
 - `Plot.svelte` — D3-based loudness timeline with playhead and click-to-seek; everything that differs between the four curves lives in one `VIEWS` table (domain, ticks, colour, label, decimation `rank`, whether the normalization offset applies, axis edge labels) — the stereo views get fixed symmetric axes, not autoscaled ones, so tracks stay comparable; reports hover values to the transport bar and owns no playback controls of its own
