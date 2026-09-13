@@ -127,7 +127,13 @@
 			}
 
 			const savedResults = await loadResults(id);
-			if (savedResults) setResults(savedResults);
+			if (savedResults) {
+				setResults(savedResults);
+				// Results saved before the streaming rewrite carry no waveform, so the
+				// plot has nothing to draw. Mark them stale so Analyze is available
+				// again instead of sitting disabled on "Already analyzed".
+				if (savedResults.some((r) => !r.waveform?.length)) markResultsStale();
+			}
 
 			isLoaded = true;
 		} catch (e) {
